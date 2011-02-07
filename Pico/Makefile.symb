@@ -1,0 +1,41 @@
+
+# Makefile for Symbian
+
+INCL=\
+  -I "D:\Symbian\6.1\Series60\Epoc32\Include" \
+  -I "D:\Symbian\6.1\Series60\Epoc32\Include\libc"
+
+# ----------------------------- ARM Compiler -----------------------------
+BPATH=D:\Symbian\6.1\Shared\Epoc32\gcc\bin
+CPP=$(BPATH)\gcc
+AS =$(BPATH)\as
+AR =$(BPATH)\ar
+CFLAGS=-D__SYMBIAN32__ -D__GCC32__ $(INCL) -march=armv4t \
+  -Wall -Wno-ctor-dtor-privacy -O3 \
+  -mstructure-size-boundary=32 \
+  -fno-builtin
+
+OBJS = Area.o Cart.o Disa.o Draw.o Memory.o Pico.o Psnd.o \
+       Sek.o Sine.o VideoPort.o Utils.o Cyclone.o ym2612.o
+
+Pico.lib: $(OBJS)
+	$(AR) -rs $@ $(OBJS)
+  copy Pico.lib "\Symbian\6.1\Series60\Epoc32\Release\armi\urel\"
+  copy Pico.lib "\Symbian\6.1\Series60\Epoc32\Release\thumb\urel\"
+
+Cyclone.o: ../Cyclone/Cyclone.s
+  $(AS) -mthumb-interwork -o $@ ../Cyclone/Cyclone.s 2> nul
+
+Utils.o: Utils.cpp
+  @$(CPP) $(CFLAGS) -S $*.cpp
+  @$(CPP) $(CFLAGS) -c $*.cpp
+
+.cpp.o:
+  @$(CPP) $(CFLAGS) -c $*.cpp
+.c.o:
+  @$(CPP) $(CFLAGS) -c $*.c
+
+
+CLEANUP=*.o *.lib Draw.s
+clean :
+  for %i in ( $(CLEANUP) ) do if exist %i del %i

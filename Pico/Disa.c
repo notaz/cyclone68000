@@ -1,5 +1,5 @@
 
-// Dave's Disa 68000 Disassembler
+// Disa 68000 Disassembler
 #ifndef __GNUC__
 #pragma warning(disable:4115)
 #endif

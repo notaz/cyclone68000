@@ -1,0 +1,189 @@
+
+----------------------------------------------------------------------------
+
+                                PicoDrive
+
+                    Megadrive emulator for Pocket PC
+
+This code is licensed under the GNU General Public License version 2.0 and the MAME License.
+You can choose the license that has the most advantages for you.
+
+----------------------------------------------------------------------------
+
+  What's new?
+
+0.030
+  Cyclone v0.076, fixes:
+  + Fixed an issue with sbcd - e.g. when 0x00-0x01 was performed, the result was correct (0x99),
+  but the carry bit was not set. Also changed abcd code to be more similar to new sbcd.
+  Used on RT2.
+  + Fixed a subtle issue in btst #n,(An), if the target is less that 32-bit, the value is
+  now masked.
+  Rolling Thunder 2 did this, but it doesn't seem to have fixed/broken anything.
+  + Oops #2! Cmpa was writing back the value to the destination register! Fixes: don't know.
+  + Oops #3! The CCR should be writable from any mode, previously it was only allowed from the
+    supervisor mode. Fixes Gain Ground.
+  + Added cmpm (Flicky, Decap Attack)
+  + For movem, added some EA modes (like 0x3a PC relative) which I thought were invalid, but
+    Flicky uses movem to PC relative...
+  + Oops, incorrect eor opcodes were being emitted instead of cmpm opcodes
+  * Trying a different way of doing addx/subx with carry (to fix zero flag?)
+
+0.025
+  + Doh, fixed a dumb divide by zero in the (w.i.p.) sound code - Sonic 1, Revenge of Shinobi
+    work again!
+
+0.024
+  Cyclone v0.072:
+  + Fixed a problem with divs - remainder should be negative when result is negative
+    Fixed intro of Block Out.
+  
+  + Fixed a typo in SekInterrupt
+
+  + Added a config file PicoConfig.txt with key codes, in the root directory
+    of the Pocket PC. If you want you can edit this to remap keys. I'll add
+    an easier way to redefine keys later.
+  - Revenge of Shinobi strangely seems broken?
+
+0.022
+  Cyclone changes:
+  + Added movep opcode (Sonic 3 works)
+  + Fixed a problem with DBcc not decrementing if the condition is false (Shadow of the Beast)
+
+0.018
+  Cyclone changes:
+    + Added SBCD and the flags for ABCD/SBCD. Score and time now works in games such as
+      Rolling Thunder 2, Ghouls 'N Ghosts
+    + Fixed a problem with addx and subx with 8-bit and 16-bit values.
+      Ghouls 'N' Ghosts now works!
+    + Alien 3 now works
+    + Added ABCD opcode (Streets of Rage works now!)
+
+0.017 Added Window (score display)
+
+0.016
+  + Added some Z80 faking which makes a few more games run
+  + Sped up graphics rendering a bit
+  + Fixed Sprite priority
+
+Cyclone Fixes
+  + Added dbCC (After Burner)
+  + Added asr EA (Sonic 1 Boss/Labyrinth Zone)
+  + Added andi/ori/eori ccr (Altered Beast)
+  + Added trap (After Burner)
+  + Added special case for move.b (a7)+ and -(a7), stepping by 2
+    After Burner is playable! Eternal Champions shows more
+  + Fixed lsr.b/w zero flag (Ghostbusters)
+    Rolling Thunder 2 first level only now works
+  + Fixed N flag for .b and .w arithmetic. Golden Axe works!
+
+
+v0.011
+Changes are to the Cyclone core, repeated here:
+----
+v0.0065
+  + Fixed a problem with immediate values - they weren't being shifted up correctly for some
+    opcodes. Spiderman works, After Burner shows a bit of graphics.
+  + Fixed a problem with EA:"110nnn" extension word. 32-bit offsets were being decoded as 8-bit
+    offsets by mistake. Castlevania Bloodlines seems fine now.
+  + Added exg opcode
+  + Fixed asr opcode (Sonic jumping left is fixed)
+  + Fixed a problem with the carry bit in rol.b (Marble Madness)
+
+v0.0064
+  + Added rtr
+  + Fixed addq/subq.l (all An opcodes are 32-bit) (Road Rash)
+  + Fixed various little timings
+
+v0.0063
+  + Added link/unlk opcodes
+  + Fixed various little timings
+  + Fixed a problem with dbCC opcode being emitted at set opcodes
+  + Improved long register access, the EA fetch now does ldr r0,[r7,r0,lsl #2] whenever
+     possible, saving 1 or 2 cycles on many opcodes, which should give a nice speed up.
+  + May have fixed N flag on ext opcode?
+  + Added dasm for link opcode.
+
+v0.0062
+  * I was a bit too keen with the Arithmetic opcodes! Some of them should have been abcd,
+    exg and addx. Removed the incorrect opcodes, pending re-adding them as abcd, exg and addx.
+  + Changed unknown opcodes to act as nops.
+    Not very technical, but fun - a few more games show more graphics ;)
+
+v0.0060
+  + Fixed divu (EA intro)
+  + Added sf (set false) opcode - SOR2
+  * Todo: pea/link/unlk opcodes
+----
+v0.010
+
++ Cyclone v0.0059: Added remainder to divide opcodes.
+  Background is now fixed on Eswat and Revenge of Shinobi. In fact they are playable!
+
+* Shrunk the screen down because some games aren't playable if you can't see the whole
+  320 pixel width.
+
+* Merged the PicoDrive and GenaDrive 'Pico' directories, with ifdefs for EMU_C68K (Cyclone)
+  and EMU_A68K.
+
++ While making GenaDrive I noticed a few bugs in the memory handlers and carried them
+  over to PicoDrive.
+  A lot of games (Revenge of Shinobi, Eswat, Sonic 1 maybe even) were reading
+  from memory locations like 0xff000000+Rom address, and I wasn't returning the Rom data.
+  Many more games show graphics now (G'n'G, Sonic 1)!
+
+* Cyclone: Changed the way Cyclone reads memory to be a bit less confusing.
+  The read/write memory handlers are now like this:
+
+  unsigned char  (*read8  )(unsigned int a);  // [r7,#0x68]
+  unsigned short (*read16 )(unsigned int a);  // [r7,#0x6c]
+  unsigned int   (*read32 )(unsigned int a);  // [r7,#0x70]
+  void (*write8 )(unsigned int a,unsigned char  d); // [r7,#0x74]
+  void (*write16)(unsigned int a,unsigned short d); // [r7,#0x78]
+  void (*write32)(unsigned int a,unsigned int   d); // [r7,#0x7c]
+
+  This means the Cyclone itself now sign-extends 16 and 8-bit values when needed, and
+  the application doesn't have to.
+
+
+v0.007 - Initial release
+
+  Haven't been working on this much recently so I thought I'd release what
+  I had onto the Internet.
+
+  Basically this is largely a framework for Cyclone, my 68000 core, and the
+  simplest system has to be the Megadrive, which is just really a 68000 with
+  flat address space wired up to a video display processor.
+  The Megadrive does of course have a Z80 for sound as well, but many games
+  will still run without it. Basically it's one of the most forgiving systems,
+  so it's probably a good starting point.
+
+  Not many games run, and none of them are playable yet, but if you really want
+  to take a look anyway, here's what to do:
+
+-------------------------------------------------------------------------------
+
+How to run PicoDrive
+
+  First connect your Pocket PC and copy PicoDrive.exe to it. Windows\Start Menu is 
+  probably the best place for easy access.
+  It needs to have GAPI installed, which you may have already. If you don't it
+  will give you a really unhelpful error message (good old Windows!) like "Unable to execute
+  program".
+  To install GAPI just drop gx.dll into either the same folder as PicoDrive, or
+  your Windows folder.
+  Rom images go in the My Documents folder, and they must be in .BIN format, uncompressed.
+
+  From memory, some games which do something are: Revenge of Shinobi, Sonic 2,
+  Ghouls 'N' Ghosts and CastleVania Bloodlines. Most just show a big blank screen :(
+  
+  If you find any games that are playable (maybe a PD game?), let me know, I'd be interested ;)
+  My e-mail is dev(at)finalburn.com - replace the (at) with an @
+  
+  I think there must be something wrong somewhere with one of the ASL-type instructions
+  or something - there are still a few unimplemented opcodes, and also I don't think I did
+  the remainder from DIVS and DIVU yet.
+
+  Dave.
+  emudave(atsymbol)gmail.com
+

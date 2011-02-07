@@ -1,0 +1,25 @@
+
+# Makefile for GP32 (Mr. Mirko's SDK)
+
+CC=arm-elf-gcc
+LD=arm-elf-gcc
+AS=arm-elf-as
+AR=arm-elf-ar
+
+INCLUDES=-I/gp32_MrMirko/lib.src/include
+CFLAGS=$(INCLUDES) -O3 -W -Wall
+
+CPPFLAGS=$(CFLAGS)
+
+OBJS = Area.o Cart.o Disa.o Draw.o Memory.o Pico.o Psnd.o \
+       Sek.o Sine.o VideoPort.o ym2612.o ../Cyclone/Cyclone.o
+
+Pico.a: $(OBJS)
+	$(AR) -rs $@ $(OBJS)
+
+VideoPort.o: VideoPort.cpp
+	$(CC) -c -O2 -W -Wall $<
+
+Draw.o: Draw.cpp
+	arm-elf-gcc $(CFLAGS) -S $<
+	arm-elf-gcc $(CFLAGS) -c $<
