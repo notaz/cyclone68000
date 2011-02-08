@@ -8,7 +8,6 @@
 
 // SVN repository can be found at http://code.google.com/p/cyclone68000/
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
