@@ -3,6 +3,8 @@
 
 // Pico Megadrive Emulator Library - Header File
 
+// Copyright (c) 2011 FinalDave (emudave (at) gmail.com)
+
 // This code is licensed under the GNU General Public License version 2.0 and the MAME License.
 // You can choose the license that has the most advantages for you.
 

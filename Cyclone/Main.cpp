@@ -1,6 +1,8 @@
 
 // This file is part of the Cyclone 68000 Emulator
 
+// Copyright (c) 2011 FinalDave (emudave (at) gmail.com)
+
 // This code is licensed under the GNU General Public License version 2.0 and the MAME License.
 // You can choose the license that has the most advantages for you.
 
@@ -232,6 +234,8 @@ static int CycloneMake()
   printf("Making %s...\n",name);
 
   ot("\n;@ Cyclone 68000 Emulator v%x.%.3x - Assembler Output\n\n",CycloneVer>>12,CycloneVer&0xfff);
+
+  ot(";@ Copyright (c) 2011 FinalDave (emudave (at) gmail.com)\n\n");
 
   ot(";@ This code is licensed under the GNU General Public License version 2.0 and the MAME License.\n");
   ot(";@ You can choose the license that has the most advantages for you.\n\n");
