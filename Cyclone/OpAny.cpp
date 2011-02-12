@@ -21,7 +21,9 @@ static unsigned short CPU_CALL OpRead16(unsigned int a)
 void OpUse(int op,int use)
 {
   char text[64]="";
-  CyJump[op]=use;
+  
+  if (op>=0)
+	  CyJump[op]=use;
 
   if (op!=use) return;
 
