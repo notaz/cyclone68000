@@ -151,11 +151,11 @@ SOURCE=.\Cyclone.s
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=..\Pico\Disa.c
+SOURCE=.\Disa\Disa.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\Pico\Disa.h
+SOURCE=.\Disa\Disa.h
 # End Source File
 # End Group
 # Begin Source File

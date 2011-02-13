@@ -1,7 +1,6 @@
 CFLAGS += -Wall -ggdb
-#LDFLAGS += -lstdc++
 
-OBJS = Main.o Ea.o OpAny.o OpArith.o OpBranch.o OpLogic.o OpMove.o ../Pico/Disa.o
+OBJS = Main.o Ea.o OpAny.o OpArith.o OpBranch.o OpLogic.o OpMove.o Disa/Disa.o
 
 all: cyclone.s
 
@@ -13,5 +12,3 @@ cyclone_gen: $(OBJS)
 
 clean:
 	$(RM) $(OBJS) cyclone_gen cyclone.s
-
-# .PHONY: cyclone.s
