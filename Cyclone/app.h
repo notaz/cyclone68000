@@ -32,7 +32,7 @@ extern int Cycles; // Current cycles for opcode
 extern int Amatch; // If one, try to match A68K timing
 extern int Accu; // Accuracy
 extern int Debug; // Debug info
-void ot(char *format, ...);
+void ot(const char *format, ...);
 void ltorg();
 void CheckInterrupt();
 int MemHandler(int type,int size);

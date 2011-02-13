@@ -22,9 +22,9 @@ int Amatch=1; // If one, try to match A68K timing
 int Accu=-1; // Accuracy
 int Debug=0; // Debug info
 
-void ot(char *format, ...)
+void ot(const char *format, ...)
 {
-  va_list valist=NULL;
+  va_list valist;
   va_start(valist,format);
   if (AsmFile) vfprintf(AsmFile,format,valist);
   va_end(valist);
