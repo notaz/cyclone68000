@@ -1,0 +1,3 @@
+*.o
+cyclone_gen
+Cyclone.s
