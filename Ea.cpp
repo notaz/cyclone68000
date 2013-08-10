@@ -141,10 +141,8 @@ static int EaCalcReg(int r,int ea,int mask,int forceor,int shift,int noshift=0)
 int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
 {
   char text[32]="";
-  int func=0;
 
   DisaPc=2; DisaGetEa(text,ea,size); // Get text version of the effective address
-  func=0x68+(size<<2); // Get correct read handler
 
   if (ea<0x10)
   {

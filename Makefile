@@ -1,6 +1,6 @@
 CFLAGS += -Wall -ggdb
 ifdef CONFIG_FILE
-CFLAGS += -DCONFIG_FILE=$(CONFIG_FILE)
+CFLAGS += -DCONFIG_FILE="\"$(CONFIG_FILE)\""
 endif
 CXXFLAGS += $(CFLAGS)
 
@@ -16,3 +16,8 @@ cyclone_gen: $(OBJS)
 
 clean:
 	$(RM) $(OBJS) cyclone_gen Cyclone.s
+
+$(OBJS): app.h config.h Cyclone.h
+ifdef CONFIG_FILE
+$(OBJS): $(CONFIG_FILE)
+endif
