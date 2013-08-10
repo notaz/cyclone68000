@@ -255,8 +255,7 @@ int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
     ot("  ldr r0,[r7,#0x60] ;@ Get Memory base\n");
     ot("  sub r0,r4,r0 ;@ Real PC\n");
     ot("  ldrsh r2,[r4],#2 ;@ Fetch extension\n"); pc_dirty=1;
-    ot("  mov r0,r0,lsl #8\n");
-    ot("  add r%d,r2,r0,asr #8 ;@ ($nn,PC)\n",a);
+    ot("  add r%d,r2,r0 ;@ ($nn,PC)\n",a);
     Cycles+=size<2 ? 8:12; // Extra cycles
     return 0;
   }
@@ -267,7 +266,6 @@ int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
     ot("  ldrh r3,[r4] ;@ Get extension word\n");
     ot("  sub r0,r4,r0 ;@ r0=PC\n");
     ot("  add r4,r4,#2\n"); pc_dirty=1;
-    ot("  mov r0,r0,asl #8 ;@ use only 24bits of PC\n");
     ot("  mov r2,r3,lsr #10\n");
     ot("  tst r3,#0x0800 ;@ Is Rn Word or Long\n");
     ot("  and r2,r2,#0x3c ;@ r2=Index of Rn\n");
@@ -275,7 +273,7 @@ int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
     ot("  ldrne   r2,[r7,r2] ;@ r2=Rn.l\n");
     ot("  mov r3,r3,asl #24 ;@ r3=Get 8-bit signed Disp\n");
     ot("  add r2,r2,r3,asr #24 ;@ r2=Disp+Rn\n");
-    ot("  add r%d,r2,r0,asr #8 ;@ r%d=Disp+PC+Rn\n",a,a);
+    ot("  add r%d,r2,r0 ;@ r%d=Disp+PC+Rn\n",a,a);
     Cycles+=size<2 ? 10:14; // Extra cycles
     return 0;
   }
