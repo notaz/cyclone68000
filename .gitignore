@@ -1,3 +1,5 @@
 *.o
 cyclone_gen
 Cyclone.s
+cscope.out
+tags
