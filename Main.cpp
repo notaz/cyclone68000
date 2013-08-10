@@ -630,7 +630,7 @@ static void PrintFramework()
   ot("  ldr r6,[r7,#0x54]\n");
   ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
   ot("  subs r5,r5,#44 ;@ Subtract cycles\n");
-  ot("  ldrge pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
+  ot("  ldrgt pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
   ot("  b CycloneEnd\n");
   ot("\n");
 
@@ -842,7 +842,7 @@ static void PrintFramework()
   ot("  ldr r6,[r7,#0x54]\n");
   ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
   ot("  subs r5,r5,#50 ;@ Subtract cycles\n");
-  ot("  ldrge pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
+  ot("  ldrgt pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
   ot("  b CycloneEnd\n");
   ot("\n");
 #endif
@@ -855,7 +855,7 @@ static void PrintFramework()
   ot("  cmp r5,#0\n");
   ot("  orr r0,r0,#2 ;@ go to trace mode\n");
   ot("  str r0,[r7,#0x58]\n");
-  ot("  blt CycloneEnd\n"); // should take care of situation where we come here when already tracing
+  ot("  ble CycloneEnd\n"); // should take care of situation where we come here when already tracing
   ot(";@ CheckInterrupt:\n");
   ot("  movs r0,r1,lsr #24 ;@ Get IRQ level\n");
   ot("  beq CycloneDoTrace\n");
@@ -898,13 +898,13 @@ static void PrintFramework()
   ot("  bl Exception\n");
   ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
   ot("  subs r5,r5,#34 ;@ Subtract cycles\n");
-  ot("  ldrge pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
+  ot("  ldrgt pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
   ot("  b CycloneEnd\n");
   ot("\n");
   ot("TraceDisabled%s\n", ms?"":":");
   ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
   ot("  cmp r5,#0\n");
-  ot("  ldrge pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
+  ot("  ldrgt pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
   ot("  b CycloneEnd\n");
   ot("\n");
 #endif

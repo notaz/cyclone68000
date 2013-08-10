@@ -112,7 +112,7 @@ void OpEnd(int sea, int tea)
   }
   if (opend_check_interrupt)
   {
-    ot("  blt CycloneEnd\n");
+    ot("  ble CycloneEnd\n");
     ot(";@ CheckInterrupt:\n");
     if (!opend_check_trace)
       ot("  ldr r1,[r7,#0x44]\n");
@@ -126,7 +126,7 @@ void OpEnd(int sea, int tea)
   }
   else
   {
-    ot("  ldrge pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
+    ot("  ldrgt pc,[r6,r8,asl #2] ;@ Jump to opcode handler\n");
     ot("  b CycloneEnd\n");
   }
   ot("\n");
