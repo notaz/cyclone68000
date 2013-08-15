@@ -119,12 +119,9 @@ idle_beq:
 @ @@@ @
 
 idle_detector_bcc8:
-    ldr     r0, =(Pico+0x22208)   @ Pico.m
-    ldr     r1, =idledet_start_frame
-    ldr     r0, [r0, #0x1c]       @ ..frame_count
-    ldr     r1, [r1]
-    cmp     r0, r1
-    blt     exit_detector         @ not yet
+    bl      SekIsIdleReady
+    tst     r0, r0
+    beq     exit_detector         @ not yet
 
     mov     r0, r8, asl #24       @ Shift 8-bit signed offset up...
     add     r0, r4, r0, asr #24   @ jump dest
