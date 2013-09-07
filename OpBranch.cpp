@@ -348,6 +348,7 @@ int OpDbra(int op)
     ot("  and r1,r8,#0x0007\n");
     ot("  mov r1,r1,lsl #2\n");
     ot("  ldrsh r0,[r7,r1]\n");
+    ot("  strb r8,[r7,#0x45] ;@ not polling\n");
     ot("  sub r0,r0,#1\n");
     ot("  strh r0,[r7,r1]\n");
     ot("\n");
@@ -418,6 +419,7 @@ int OpBranch(int op)
   int offset=0;
   int cc=0;
   const char *asr_r11="";
+  int pc_reg=0;
 
   offset=(char)(op&0xff);
   cc=(op>>8)&15;
@@ -428,7 +430,7 @@ int OpBranch(int op)
 
   if (size==2) size=0; // 000 model does not support long displacement
   if (size) use=op; // 16-bit or 32-bit
-  else use=(op&0xff00)+1; // Use same opcode for all 8-bit branches
+  else use=(op&0xff01)+2; // Use same opcode for all 8-bit branches
 
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
   OpStart(op,size?0x10:0);
@@ -491,8 +493,6 @@ int OpBranch(int op)
     Cycles=18; // always 18
   }
 
-  ot("  add r0,r4,r11%s ;@ r4 = New PC\n",asr_r11);
-
 #if USE_CHECKPC_CALLBACK && USE_CHECKPC_OFFSETBITS_8
   if (offset!=0 && offset!=-1) checkpc=1;
 #endif
@@ -502,20 +502,48 @@ int OpBranch(int op)
 #if USE_CHECKPC_CALLBACK
   if (offset==-1) checkpc=1;
 #endif
-  if (checkpc) CheckPc();
+  if (checkpc)
+  {
+    ot("  add r0,r4,r11%s ;@ New PC\n",asr_r11);
+    CheckPc();
+    pc_reg=0;
+  }
+  else
+  {
+    ot("  add r4,r4,r11%s ;@ r4 = New PC\n",asr_r11);
+    pc_reg=4;
+  }
+
+  if ((op & 1) || size != 0)
+  {
 #if EMULATE_ADDRESS_ERRORS_JUMP
-  ot("  mov r4,r0\n");
-  ot("  tst r4,#1 ;@ address error?\n");
-  ot("  bne ExceptionAddressError_r_prg_r4\n");
+    if (pc_reg!=4)
+    {
+      ot("  mov r4,r%d\n",pc_reg);
+      pc_reg=4;
+    }
+    if (size)
+    {
+      ot("  tst r4,#1 ;@ address error?\n");
+      ot("  bne ExceptionAddressError_r_prg_r4\n");
+    }
+    else
+    {
+      ot("  b ExceptionAddressError_r_prg_r4\n");
+    }
 #else
-  ot("  bic r4,r0,#1\n");
+    ot("  bic r4,r%d,#1\n",pc_reg);
+    pc_reg=4;
 #endif
+  }
+  if (pc_reg!=4)
+    ot("  mov r4,r%d\n",pc_reg);
   ot("\n");
 
   OpEnd(size?0x10:0);
 
   // since all "DontBranch" code is same for every size, output only once
-  if (cc>=2&&(op&0xff00)==0x6700)
+  if (cc>=2&&(op&0xff01)==0x6700)
   {
     ot("BccDontBranch%i%s\n", 8<<size, ms?"":":");
     if (size) ot("  add r4,r4,#%d\n",1<<size);

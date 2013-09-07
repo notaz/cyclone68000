@@ -14,16 +14,16 @@ have_patches:
 .equ patch_desc_table_size, 10
 
 patch_desc_table:
-  .word (0x71fa<<16) | 0x66fa, idle_detector_bcc8, idle_bne, Op6601  @ bne.s
-  .word (0x71f8<<16) | 0x66f8, idle_detector_bcc8, idle_bne, Op6601  @ bne.s
-  .word (0x71f6<<16) | 0x66f6, idle_detector_bcc8, idle_bne, Op6601  @ bne.s
-  .word (0x71f2<<16) | 0x66f2, idle_detector_bcc8, idle_bne, Op6601  @ bne.s
-  .word (0x75fa<<16) | 0x67fa, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
-  .word (0x75f8<<16) | 0x67f8, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
-  .word (0x75f6<<16) | 0x67f6, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
-  .word (0x75f2<<16) | 0x67f2, idle_detector_bcc8, idle_beq, Op6701  @ beq.s
-  .word (0x7dfe<<16) | 0x60fe, idle_detector_bcc8, idle_bra, Op6001  @ bra.s
-  .word (0x7dfc<<16) | 0x60fc, idle_detector_bcc8, idle_bra, Op6001  @ bra.s
+  .word (0x71fa<<16) | 0x66fa, idle_detector_bcc8, idle_bne, Op6602  @ bne.s
+  .word (0x71f8<<16) | 0x66f8, idle_detector_bcc8, idle_bne, Op6602  @ bne.s
+  .word (0x71f6<<16) | 0x66f6, idle_detector_bcc8, idle_bne, Op6602  @ bne.s
+  .word (0x71f2<<16) | 0x66f2, idle_detector_bcc8, idle_bne, Op6602  @ bne.s
+  .word (0x75fa<<16) | 0x67fa, idle_detector_bcc8, idle_beq, Op6702  @ beq.s
+  .word (0x75f8<<16) | 0x67f8, idle_detector_bcc8, idle_beq, Op6702  @ beq.s
+  .word (0x75f6<<16) | 0x67f6, idle_detector_bcc8, idle_beq, Op6702  @ beq.s
+  .word (0x75f2<<16) | 0x67f2, idle_detector_bcc8, idle_beq, Op6702  @ beq.s
+  .word (0x7dfe<<16) | 0x60fe, idle_detector_bcc8, idle_bra, Op6002  @ bra.s
+  .word (0x7dfc<<16) | 0x60fc, idle_detector_bcc8, idle_bra, Op6002  @ bra.s
 
 
 .text
@@ -101,19 +101,19 @@ cfi_loop:
 idle_bra:
     mov     r5, #2
     inc_counter
-    b       Op6001
+    b       Op6002
 
 idle_bne:
     msr     cpsr_flg, r10
     movne   r5, #2                @ 2 is intentional due to strange timing issues
     inc_counter ne
-    b       Op6601
+    b       Op6602
 
 idle_beq:
     msr     cpsr_flg, r10 ;@ ARM flags = 68000 flags
     moveq   r5, #2
     inc_counter eq
-    b       Op6701
+    b       Op6702
 
 
 @ @@@ @
@@ -156,9 +156,9 @@ idle_detector_bcc8:
     @ remove detector from Cyclone
     mov     r0, r8, lsr #8
     cmp     r0, #0x66
-    ldrlt   r1, =Op6001
-    ldreq   r1, =Op6601
-    ldrgt   r1, =Op6701
+    ldrlt   r1, =Op6002
+    ldreq   r1, =Op6602
+    ldrgt   r1, =Op6702
 
     ldr     r3, =CycloneJumpTab
     str     r1, [r3, r8, lsl #2]
@@ -167,7 +167,7 @@ idle_detector_bcc8:
 exit_detector:
     mov     r0, r8, lsr #8
     cmp     r0, #0x66
-    blt     Op6001
-    beq     Op6601
-    b       Op6701
+    blt     Op6002
+    beq     Op6602
+    b       Op6702
 

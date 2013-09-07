@@ -25,7 +25,7 @@ struct Cyclone
   unsigned int a[8];    // [r7,#0x20]
   unsigned int pc;      // [r7,#0x40] Memory Base (.membase) + 68k PC
   unsigned char srh;    // [r7,#0x44] Status Register high (T_S__III)
-  unsigned char unused; // [r7,#0x45] Unused
+  unsigned char not_pol;// [r7,#0x45] not polling
   unsigned char flags;  // [r7,#0x46] Flags (ARM order: ____NZCV) [68k order is XNZVC]
   unsigned char irq;    // [r7,#0x47] IRQ level
   unsigned int osp;     // [r7,#0x48] Other Stack Pointer (USP/SSP)

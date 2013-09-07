@@ -25,8 +25,8 @@ int arm_op_count;
 
 // opcodes often used by games
 static const unsigned short hot_opcodes[] = {
-  0x6701, // beq     $3
-  0x6601, // bne     $3
+  0x6702, // beq     $3
+  0x6602, // bne     $3
   0x51c8, // dbra    Dn, $2
   0x4a38, // tst.b   $0.w
   0xd040, // add.w   Dn, Dn
@@ -34,7 +34,7 @@ static const unsigned short hot_opcodes[] = {
   0x0240, // andi.w  #$0, D0
   0x2038, // move.l  $0.w, D0
   0xb0b8, // cmp.l   $0.w, D0
-  0x6001, // bra     $3
+  0x6002, // bra     $3
   0x30c0, // move.w  D0, (A0)+
   0x3028, // move.w  ($0,A0), D0
   0x0c40, // cmpi.w  #$0, D0
@@ -52,7 +52,7 @@ static const unsigned short hot_opcodes[] = {
   0xb038, // cmp.b   $0.w, D0
   0x3039, // move.w  $0.l, D0
   0x4840, // swap    D0
-  0x6101, // bsr     $3
+  0x6102, // bsr     $3
   0x6100, // bsr     $2
   0x5e40, // addq.w  #7, D0
   0x1039, // move.b  $0.l, D0
@@ -64,10 +64,10 @@ static const unsigned short hot_opcodes[] = {
   0xc040, // and.w   D0, D0
   0x3180, // move.w  D0, (A0,D0.w)
   0x1198, // move.b  (A0)+, (A0,D0.w)
-  0x6501, // bcs     $3
+  0x6502, // bcs     $3
   0x6500, // bcs     $2
-  0x6401, // bcc     $3
-  0x6a01, // bpl     $3
+  0x6402, // bcc     $3
+  0x6a02, // bpl     $3
   0x41f0, // lea     (A0,D0.w), A0
   0x4a28, // tst.b   ($0,A0)
   0x0828, // btst    #$0, ($0,A0)
@@ -1267,9 +1267,9 @@ static int CycloneMake()
   ot("  %s CycloneDoTrace\n",globl);
   ot("  %s CycloneJumpTab\n",globl);
   ot("  %s Op____\n",globl);
-  ot("  %s Op6001\n",globl);
-  ot("  %s Op6601\n",globl);
-  ot("  %s Op6701\n",globl);
+  ot("  %s Op6002\n",globl);
+  ot("  %s Op6602\n",globl);
+  ot("  %s Op6702\n",globl);
 #endif
   ot("\n");
   ot(ms?"CycloneVer dcd 0x":"CycloneVer: .long 0x");
