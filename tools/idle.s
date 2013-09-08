@@ -104,15 +104,15 @@ idle_bra:
     b       Op6002
 
 idle_bne:
-    msr     cpsr_flg, r10
-    movne   r5, #2                @ 2 is intentional due to strange timing issues
-    inc_counter ne
+    tst     r10, #0x40000000      @ Z set?
+    moveq   r5, #2                @ 2 is intentional due to strange timing issues
+    inc_counter eq
     b       Op6602
 
 idle_beq:
-    msr     cpsr_flg, r10 ;@ ARM flags = 68000 flags
-    moveq   r5, #2
-    inc_counter eq
+    tst     r10, #0x40000000      @ Z set?
+    movne   r5, #2
+    inc_counter ne
     b       Op6702
 
 

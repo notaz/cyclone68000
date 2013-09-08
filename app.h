@@ -102,6 +102,7 @@ int OpSet(int op);
 int OpAsr(int op);
 int OpAsrEa(int op);
 int OpTas(int op, int gen_special=0);
+const char *TestCond(int m68k_cc, int invert=0);
 
 // OpMove.cpp
 int OpMove(int op);

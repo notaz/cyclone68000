@@ -12,6 +12,84 @@
 
 #include "app.h"
 
+// trashes r0
+const char *TestCond(int m68k_cc, int invert)
+{
+  const char *cond="";
+  const char *icond="";
+
+  // ARM: NZCV
+  switch (m68k_cc)
+  {
+    case 0x00: // T
+    case 0x01: // F
+      break;
+    case 0x02: // hi
+      ot("  tst r10,#0x60000000 ;@ hi: !C && !Z\n");
+      cond="eq", icond="ne";
+      break;
+    case 0x03: // ls
+      ot("  tst r10,#0x60000000 ;@ ls: C || Z\n");
+      cond="ne", icond="eq";
+      break;
+    case 0x04: // cc
+      ot("  tst r10,#0x20000000 ;@ cc: !C\n");
+      cond="eq", icond="ne";
+      break;
+    case 0x05: // cs
+      ot("  tst r10,#0x20000000 ;@ cs: C\n");
+      cond="ne", icond="eq";
+      break;
+    case 0x06: // ne
+      ot("  tst r10,#0x40000000 ;@ ne: !Z\n");
+      cond="eq", icond="ne";
+      break;
+    case 0x07: // eq
+      ot("  tst r10,#0x40000000 ;@ eq: Z\n");
+      cond="ne", icond="eq";
+      break;
+    case 0x08: // vc
+      ot("  tst r10,#0x10000000 ;@ vc: !V\n");
+      cond="eq", icond="ne";
+      break;
+    case 0x09: // vs
+      ot("  tst r10,#0x10000000 ;@ vs: V\n");
+      cond="ne", icond="eq";
+      break;
+    case 0x0a: // pl
+      ot("  tst r10,r10 ;@ pl: !N\n");
+      cond="pl", icond="mi";
+      break;
+    case 0x0b: // mi
+      ot("  tst r10,r10 ;@ mi: N\n");
+      cond="mi", icond="pl";
+      break;
+    case 0x0c: // ge
+      ot("  teq r10,r10,lsl #3 ;@ ge: N == V\n");
+      cond="pl", icond="mi";
+      break;
+    case 0x0d: // lt
+      ot("  teq r10,r10,lsl #3 ;@ lt: N != V\n");
+      cond="mi", icond="pl";
+      break;
+    case 0x0e: // gt
+      ot("  eor r0,r10,r10,lsl #3 ;@ gt: !Z && N == V\n");
+      ot("  orrs r0,r10,lsl #1\n");
+      cond="pl", icond="mi";
+      break;
+    case 0x0f: // le
+      ot("  eor r0,r10,r10,lsl #3 ;@ le: Z || N != V\n");
+      ot("  orrs r0,r10,lsl #1\n");
+      cond="mi", icond="pl";
+      break;
+    default:
+      printf("invalid m68k_cc: %x\n", m68k_cc);
+      exit(1);
+      break;
+  }
+  return invert?icond:cond;
+}
+
 // --------------------- Opcodes 0x0100+ ---------------------
 // Emit a Btst (Register) opcode 0000nnn1 ttaaaaaa
 int OpBtstReg(int op)
@@ -318,11 +396,7 @@ int OpSet(int op)
 {
   int cc=0,ea=0;
   int size=0,use=0,changed_cycles=0;
-  static const char * const cond[16]=
-  {
-    "al","", "hi","ls","cc","cs","ne","eq",
-    "vc","vs","pl","mi","ge","lt","gt","le"
-  };
+  const char *cond;
 
   cc=(op>>8)&15;
   ea=op&0x003f;
@@ -339,32 +413,20 @@ int OpSet(int op)
   OpStart(op,ea,0,changed_cycles); Cycles=8;
   if (ea<8) Cycles=4;
 
-  if (cc)
-    ot("  mov r1,#0\n");
-
   switch (cc)
   {
-    case 0: // T
+    case 0x00: // T
       ot("  mvn r1,#0\n");
       if (ea<8) Cycles+=2;
       break;
-    case 1: // F
-      break;
-    case 2: // hi
-      ot("  tst r10,#0x60000000 ;@ hi: !C && !Z\n");
-      ot("  mvneq r1,r1\n");
-      if (ea<8) ot("  subeq r5,r5,#2 ;@ Extra cycles\n");
-      break;
-    case 3: // ls
-      ot("  tst r10,#0x60000000 ;@ ls: C || Z\n");
-      ot("  mvnne r1,r1\n");
-      if (ea<8) ot("  subne r5,r5,#2 ;@ Extra cycles\n");
+    case 0x01: // F
+      ot("  mov r1,#0\n");
       break;
     default:
-      ot(";@ Is the condition true?\n");
-      ot("  msr cpsr_flg,r10 ;@ ARM flags = 68000 flags\n");
-      ot("  mvn%s r1,r1\n",cond[cc]);
-      if (ea<8) ot("  sub%s r5,r5,#2 ;@ Extra cycles\n",cond[cc]);
+      ot("  mov r1,#0\n");
+      cond=TestCond(cc);
+      ot("  mvn%s r1,#0\n",cond);
+      if (ea<8) ot("  sub%s r5,r5,#2 ;@ Extra cycles\n",cond);
       break;
   }
 

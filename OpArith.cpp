@@ -373,7 +373,7 @@ int GetXBit(int subtract)
   ot(";@ Get X bit:\n");
   ot("  ldr r2,[r7,#0x4c]\n");
   if (subtract) ot("  mvn r2,r2 ;@ Invert it\n");
-  ot("  msr cpsr_flg,r2 ;@ Get into Carry\n");
+  ot("  tst r2,r2,lsl #3 ;@ Get into Carry\n");
   ot("\n");
   return 0;
 }

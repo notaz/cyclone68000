@@ -312,6 +312,7 @@ static const char * const Cond[16]=
 // Emit a Dbra opcode, 0101cccc 11001nnn vv
 int OpDbra(int op)
 {
+  const char *cond;
   int use=0;
   int cc=0;
 
@@ -321,25 +322,12 @@ int OpDbra(int op)
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
   OpStart(op);
 
-  switch (cc)
+  if (cc>=2)
   {
-    case 0: // T
-    case 1: // F
-      break;
-    case 2: // hi
-      ot("  tst r10,#0x60000000 ;@ hi: !C && !Z\n");
-      ot("  beq DbraTrue\n\n");
-      break;
-    case 3: // ls
-      ot("  tst r10,#0x60000000 ;@ ls: C || Z\n");
-      ot("  bne DbraTrue\n\n");
-      break;
-    default:
-      ot(";@ Is the condition true?\n");
-      ot("  msr cpsr_flg,r10 ;@ ARM flags = 68000 flags\n");
-      ot(";@ If so, don't dbra\n");
-      ot("  b%s DbraTrue\n\n",Cond[cc]);
-      break;
+    ot(";@ Is the condition true?\n");
+    cond=TestCond(cc);
+    ot(";@ If so, don't dbra\n");
+    ot("  b%s DbraTrue\n\n",cond);
   }
 
   if (cc!=0)
@@ -419,6 +407,7 @@ int OpBranch(int op)
   int offset=0;
   int cc=0;
   const char *asr_r11="";
+  const char *cond;
   int pc_reg=0;
 
   offset=(char)(op&0xff);
@@ -436,24 +425,10 @@ int OpBranch(int op)
   OpStart(op,size?0x10:0);
   Cycles=10; // Assume branch taken
 
-  switch (cc)
+  if (cc>=2)
   {
-    case 0: // T
-    case 1: // F
-      break;
-    case 2: // hi
-      ot("  tst r10,#0x60000000 ;@ hi: !C && !Z\n");
-      ot("  bne BccDontBranch%i\n\n",8<<size);
-      break;
-    case 3: // ls
-      ot("  tst r10,#0x60000000 ;@ ls: C || Z\n");
-      ot("  beq BccDontBranch%i\n\n",8<<size);
-      break;
-    default:
-      ot(";@ Is the condition true?\n");
-      ot("  msr cpsr_flg,r10 ;@ ARM flags = 68000 flags\n");
-      ot("  b%s BccDontBranch%i\n\n",Cond[cc^1],8<<size);
-      break;
+    cond=TestCond(cc,1);
+    ot("  b%s BccDontBranch%i\n\n",cond,8<<size);
   }
 
   if (size) 
