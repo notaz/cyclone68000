@@ -45,19 +45,17 @@ int OpArith(int op)
 
   ot(";@ Do arithmetic:\n");
 
-  if (type==0) ot("  orr r1,r10,r0%s\n",shiftstr);
-  if (type==1) ot("  and r1,r10,r0%s\n",shiftstr);
+  if (type==0) ot("  orrs r1,r10,r0%s\n",shiftstr);
+  if (type==1) ot("  ands r1,r10,r0%s\n",shiftstr);
   if (type==2||type==6)
                ot("  rsbs r1,r10,r0%s ;@ Defines NZCV\n",shiftstr);
   if (type==3) ot("  adds r1,r10,r0%s ;@ Defines NZCV\n",shiftstr);
-  if (type==5) ot("  eor r1,r10,r0%s\n",shiftstr);
+  if (type==5) ot("  eors r1,r10,r0%s\n",shiftstr);
 
-  if (type<2 || type==5) ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n"); // 0,1,5
-
-  if (type< 2) OpGetFlags(0,0); // Ori/And
+  if (type< 2) OpGetFlagsNZ(1); // Ori/And
   if (type==2) OpGetFlags(1,1); // Sub: Subtract/X-bit
   if (type==3) OpGetFlags(0,1); // Add: X-bit
-  if (type==5) OpGetFlags(0,0); // Eor
+  if (type==5) OpGetFlagsNZ(1); // Eor
   if (type==6) OpGetFlags(1,0); // Cmp: Subtract
   ot("\n");
 
@@ -182,9 +180,9 @@ int OpArithReg(int op)
   EaCalcReadNoSE(dir?-1:11,1,rea,size,0x0e00);
 
   ot(";@ Do arithmetic:\n");
-  if (type==0) strop = "orr";
+  if (type==0) strop = "orrs";
   if (type==1) strop = (char *) (dir ? "subs" : "rsbs");
-  if (type==4) strop = "and";
+  if (type==4) strop = "ands";
   if (type==5) strop = "adds";
 
   if (size==0) asl=",asl #24";
@@ -193,9 +191,8 @@ int OpArithReg(int op)
   if (size<2) ot("  mov r0,r0%s\n",asl);
   ot("  %s r1,r0,r1%s\n",strop,asl);
 
-  if ((type&1)==0) ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
-
-  OpGetFlags(type==1,type&1); // 1==subtract
+  if (type&1) OpGetFlags(type==1,type&1); // add/subtract
+  else        OpGetFlagsNZ(1);
   ot("\n");
 
   ot(";@ Save result:\n");
@@ -327,9 +324,8 @@ int OpMul(int op)
       ot("\n");
     }
 
-    ot("  mov r1,r3,lsl #16 ;@ Clip to 16-bits\n");
-    ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
-    OpGetFlags(0,0);
+    ot("  movs r1,r3,lsl #16 ;@ Clip to 16-bits\n");
+    OpGetFlagsNZ(1);
 
     ot("  mov r1,r1,lsr #16\n");
     ot("  orr r1,r1,r2,lsl #16 ;@ Insert remainder\n");
@@ -343,9 +339,8 @@ int OpMul(int op)
     ot("  mov r2,r2,%s #16\n",sign?"asr":"lsr");
     ot("\n");
 
-    ot("  mul r1,r2,r0\n");
-    ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
-    OpGetFlags(0,0);
+    ot("  muls r1,r2,r0\n");
+    OpGetFlagsNZ(1);
   }
   ot("\n");
 
@@ -716,14 +711,16 @@ int OpCmpEor(int op)
   if (size<2) asl=(char *)(size?",asl #16":",asl #24");
 
   ot(";@ Do arithmetic:\n");
-  if (eor==0) ot("  rsbs r1,r0,r1%s\n",asl);
   if (eor)
   {
-    ot("  eor r1,r0,r1%s\n",asl);
-    ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
+    ot("  eors r1,r0,r1%s\n",asl);
+    OpGetFlagsNZ(1);
   }
-
-  OpGetFlags(eor==0,0); // Cmp like subtract
+  else
+  {
+    ot("  rsbs r1,r0,r1%s\n",asl);
+    OpGetFlags(1,0); // Cmp like subtract
+  }
   ot("\n");
 
   if (eor) EaWrite(11, 1,ea,size,0x003f,1);
@@ -800,18 +797,18 @@ int OpChk(int op)
   EaCalcReadNoSE(-1,1,rea,size,0x0e00);
 
   if (size<2) ot("  mov r0,r0,asl #%d\n",size?16:24);
-  if (size<2) ot("  mov r1,r1,asl #%d\n\n",size?16:24);
+
+  if (size<2) ot("  movs r1,r1,asl #%d\n\n",size?16:24);
+  else        ot("  adds r1,r1,#0 ;@ Define flags\n");
 
   ot(";@ get flags, including undocumented ones\n");
   ot("  and r3,r10,#0x80000000\n");
-  ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
-  OpGetFlags(0,0);
+  OpGetFlagsNZ(1);
 
   ot(";@ is reg negative?\n");
   ot("  bmi chktrap%.4x\n",op);
 
   ot(";@ Do arithmetic:\n");
-  ot("  bic r10,r10,#0x80000000 ;@ N\n");
   ot("  cmp r1,r0\n");
   ot("  bgt chktrap%.4x\n",op);
 

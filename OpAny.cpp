@@ -159,6 +159,12 @@ int OpGetFlags(int subtract,int xbit,int specialz)
   return 0;
 }
 
+void OpGetFlagsNZ(int rd)
+{
+  ot("  and r10,r%d,#0x80000000 ;@ r10=N_flag\n",rd);
+  ot("  orreq r10,r10,#0x40000000 ;@ get NZ, clear CV\n");
+}
+
 // -----------------------------------------------------------------
 
 int g_op;

@@ -133,9 +133,8 @@ int OpMove(int op)
 
   if (movea==0)
   {
-    EaCalcRead(-1,0,sea,size,0x003f);
-    ot("  adds r1,r0,#0 ;@ Defines NZ, clears CV\n");
-    ot("  mrs r10,cpsr ;@ r10=NZCV flags\n");
+    EaCalcRead(-1,1,sea,size,0x003f,1,1);
+    OpGetFlagsNZ(1);
     ot("\n");
   }
   else
@@ -530,7 +529,7 @@ int OpMoveq(int op)
   ot("  movs r0,r8,asl #24\n");
   ot("  and r1,r8,#0x0e00\n");
   ot("  mov r0,r0,asr #24 ;@ Sign extended Quick value\n");
-  ot("  mrs r10,cpsr ;@ r10=NZ flags\n");
+  OpGetFlagsNZ(0);
   ot("  str r0,[r7,r1,lsr #7] ;@ Store into Dn\n");
   ot("\n");
 

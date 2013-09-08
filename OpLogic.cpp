@@ -285,12 +285,11 @@ int OpNeg(int op)
     ot(";@ Not:\n");
     if(size!=2) {
       ot("  mov r0,r0,asl #%i\n",size?16:24);
-      ot("  mvn r1,r0,asr #%i\n",size?16:24);
+      ot("  mvns r1,r0,asr #%i\n",size?16:24);
     }
     else
-      ot("  mvn r1,r0\n");
-    ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
-    OpGetFlags(0,0);
+      ot("  mvns r1,r0\n");
+    OpGetFlagsNZ(1);
     ot("\n");
   }
 
@@ -318,9 +317,8 @@ int OpSwap(int op)
   EaCalc (11,0x0007,ea,2,1);
   EaRead (11,     0,ea,2,0x0007,1);
 
-  ot("  mov r1,r0,ror #16\n");
-  ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
-  OpGetFlags(0,0);
+  ot("  movs r1,r0,ror #16\n");
+  OpGetFlagsNZ(1);
 
   EaWrite(11,     1,8,2,0x0007,1);
 
@@ -347,11 +345,10 @@ int OpTst(int op)
 
   OpStart(op,sea); Cycles=4;
 
-  EaCalc ( 0,0x003f,sea,size,1);
-  EaRead ( 0,     0,sea,size,0x003f,1);
+  EaCalc (0,0x003f,sea,size,1);
+  EaRead (0,     0,sea,size,0x003f,1,0,1);
 
-  ot("  adds r0,r0,#0 ;@ Defines NZ, clears CV\n");
-  ot("  mrs r10,cpsr ;@ r10=flags\n");
+  OpGetFlagsNZ(0);
   ot("\n");
 
   OpEnd(sea);
@@ -378,9 +375,8 @@ int OpExt(int op)
   EaCalc (11,0x0007,ea,size+1,0,0);
   EaRead (11,     0,ea,size+1,0x0007,0,0);
 
-  ot("  mov r0,r0,asl #%d\n",shift);
-  ot("  adds r0,r0,#0 ;@ Defines NZ, clears CV\n");
-  ot("  mrs r10,cpsr ;@ r10=flags\n");
+  ot("  movs r0,r0,asl #%d\n",shift);
+  OpGetFlagsNZ(0);
   ot("  mov r1,r0,asr #%d\n",shift);
   ot("\n");
 
@@ -596,8 +592,8 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
       ot("  b nozerox%.4x\n",op);
       ot("norotx_%.4x%s\n",op,ms?"":":");
       ot("  ldr r2,[r7,#0x4c]\n");
-      ot("  adds r0,r0,#0 ;@ Defines NZ, clears CV\n");
-      OpGetFlags(0,0);
+      ot("  adds r0,r0,#0 ;@ Define flags\n");
+      OpGetFlagsNZ(0);
       ot("  and r2,r2,#0x20000000\n");
       ot("  orr r10,r10,r2 ;@ C = old_X\n");
       ot("nozerox%.4x%s\n",op,ms?"":":");
@@ -746,10 +742,9 @@ int OpTas(int op, int gen_special)
   if(ea>=8) Cycles+=10;
 
   EaCalc (11,0x003f,ea,0,1);
-  EaRead (11,     1,ea,0,0x003f,1);
+  EaRead (11,     1,ea,0,0x003f,1,0,1);
 
-  ot("  adds r1,r1,#0 ;@ Defines NZ, clears CV\n");
-  OpGetFlags(0,0);
+  OpGetFlagsNZ(1);
   ot("\n");
 
 #if CYCLONE_FOR_GENESIS

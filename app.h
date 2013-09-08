@@ -33,8 +33,8 @@ extern int g_pea_cycle_table[];
 extern int g_movem_cycle_table[];
 int Ea_add_ns(int *tab, int ea); // add nonstandard EA cycles
 int EaCalc(int a,int mask,int ea,int size,int top=0,int sign_extend=1); // 6
-int EaRead(int a,int v,int ea,int size,int mask,int top=0,int sign_extend=1); // 7
-int EaCalcRead(int r_ea,int r,int ea,int size,int mask,int sign_extend=1); // 6
+int EaRead(int a,int v,int ea,int size,int mask,int top=0,int sign_extend=1,int set_nz=0); // 8
+int EaCalcRead(int r_ea,int r,int ea,int size,int mask,int sign_extend=1,int set_nz=0); // 7
 int EaCalcReadNoSE(int r_ea,int r,int ea,int size,int mask);
 int EaCanRead(int ea,int size);
 int EaWrite(int a,int v,int ea,int size,int mask,int top=0,int sign_extend_ea=1);
@@ -58,6 +58,7 @@ void FlushPC(void);
 extern int g_op;
 extern int opend_op_changes_cycles, opend_check_interrupt, opend_check_trace;
 int OpGetFlags(int subtract,int xbit,int sprecialz=0);
+void OpGetFlagsNZ(int rd);
 void OpUse(int op,int use);
 void OpStart(int op,int sea=0,int tea=0,int op_changes_cycles=0,int supervisor_check=0);
 void OpEnd(int sea=0,int tea=0);

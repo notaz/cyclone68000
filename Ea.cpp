@@ -305,10 +305,14 @@ int EaCalc(int a,int mask,int ea,int size,int top,int sign_extend)
 // If top is 0 and sign_extend is not, then ARM register v is sign extended,
 // e.g. 0xc000 -> 0xffffc000 (else it may or may not be sign extended)
 
-int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend)
+int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend,int set_nz)
 {
   char text[32]="";
+  const char *s="";
+  int flags_set=0;
   int shift=0;
+
+  if (set_nz) s="s";
 
   shift=32-(8<<size);
 
@@ -331,7 +335,8 @@ int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend)
     else if (lsl<0) ot("  ldr%s r%d,[r7,r%d,lsr #%i]\n",Narm[nsarm],v,a,-lsl);
     else            ot("  ldr%s r%d,[r7,r%d]\n",Sarm[nsarm],v,a);
 
-    if (top&&shift) ot("  mov r%d,r%d,asl #%d\n",v,v,shift);
+    if (top&&shift) ot("  mov%s r%d,r%d,asl #%d\n",s,v,v,shift);
+    else if(set_nz) ot("  tst r%d,r%d\n",v,v);
 
     ot("\n"); return 0;
   }
@@ -344,8 +349,9 @@ int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend)
 
     if (top) asl=shift;
 
-    if (asl) ot("  mov r%d,r%d,asl #%d\n",v,a,asl);
-    else if (v!=a) ot("  mov r%d,r%d\n",v,a);
+    if (asl)         ot("  mov%s r%d,r%d,asl #%d\n",s,v,a,asl);
+    else if (v!=a)   ot("  mov%s r%d,r%d\n",s,v,a);
+    else if (set_nz) ot("  tst r%d,r%d\n",v,v);
     ot("\n"); return 0;
   }
 
@@ -359,23 +365,34 @@ int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend)
   {
     int d_reg=0;
     if (shift) {
-      ot("  mov r%d,r%d,asl #%d\n",v,d_reg,shift);
+      ot("  mov%s r%d,r%d,asl #%d\n",s,v,d_reg,shift);
       d_reg=v;
+      flags_set=1;
     }
     if (!top && shift) {
-      ot("  mov r%d,r%d,asr #%d\n",v,d_reg,shift);
+      ot("  mov%s r%d,r%d,asr #%d\n",s,v,d_reg,shift);
       d_reg=v;
+      flags_set=1;
     }
-    if (d_reg != v)
-      ot("  mov r%d,r%d\n",v,d_reg);
+    if (d_reg != v) {
+      ot("  mov%s r%d,r%d\n",s,v,d_reg);
+      flags_set=1;
+    }
   }
   else
   {
-    if (top && shift)
-      ot("  mov r%d,r0,asl #%d\n",v,shift);
-    else if (v!=0)
-      ot("  mov r%d,r0\n",v);
+    if (top && shift) {
+      ot("  mov%s r%d,r0,asl #%d\n",s,v,shift);
+      flags_set=1;
+    }
+    else if (v!=0) {
+      ot("  mov%s r%d,r0\n",s,v);
+      flags_set=1;
+    }
   }
+
+  if (set_nz&&!flags_set)
+    ot("  tst r%d,r%d\n",v,v);
 
   ot("\n"); return 0;
 }
@@ -387,7 +404,7 @@ int EaRead(int a,int v,int ea,int size,int mask,int top,int sign_extend)
 // size values 0, 1, 2 ~ byte, word, long
 // r_ea is reg to store ea in (-1 means ea is not needed), r is dst reg
 // if sign_extend is 0, non-32bit values will have MS bits undefined
-int EaCalcRead(int r_ea,int r,int ea,int size,int mask,int sign_extend)
+int EaCalcRead(int r_ea,int r,int ea,int size,int mask,int sign_extend,int set_nz)
 {
   if (ea<0x10)
   {
@@ -407,7 +424,7 @@ int EaCalcRead(int r_ea,int r,int ea,int size,int mask,int sign_extend)
   }
 
   EaCalc (r_ea,mask,ea,size,0,sign_extend);
-  EaRead (r_ea,   r,ea,size,mask,0,sign_extend);
+  EaRead (r_ea,   r,ea,size,mask,0,sign_extend,set_nz);
 
   return 0;
 }
