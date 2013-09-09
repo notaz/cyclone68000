@@ -306,7 +306,12 @@ static void PrintFramework()
   ot("  bx lr\n");
   ltorg();
 #else
-  ot(";@ do nothing\n");
+  ot(";@ fix final jumptable entries\n");
+  ot("  ldr r12,=CycloneJumpTab\n");
+  ot("  add r12,r12,#0x10000*4\n");
+  ot("  ldr r0,[r12,#-3*4]\n");
+  ot("  str r0,[r12,#-2*4]\n");
+  ot("  str r0,[r12,#-1*4]\n");
   ot("  bx lr\n");
 #endif
   ot("\n");
