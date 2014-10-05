@@ -372,8 +372,7 @@ int EaRead(int a,int v,int ea,int size,int mask,EaRWType type,int set_nz)
   {
     int d_reg=0;
     if (shift) {
-      ot("  mov r%d,r%d,asl #%d\n",v,d_reg,shift);
-      ot("  mov%s r%d,r%d,asr #%d\n",s,v,v,shift);
+      SignExtend(v, d_reg, size);
       d_reg=v;
       flags_set=1;
     }
@@ -498,8 +497,7 @@ int EaWrite(int a,int v,int ea,int size,int mask,EaRWType type)
     case 1:
       if (type != earwt_zero_extend)
       {
-        ot("  mov r1,r%d,lsl #16\n",v);
-        ot("  mov r1,r1,lsr #16\n");
+        ZeroExtend(1, v, size);
         break;
       }
       // fallthrough

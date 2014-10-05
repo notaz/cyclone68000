@@ -65,6 +65,8 @@ extern int g_op;
 extern int opend_op_changes_cycles, opend_check_interrupt, opend_check_trace;
 int OpGetFlags(int subtract,int xbit,int sprecialz=0);
 void OpGetFlagsNZ(int rd);
+void SignExtend(int rd, int rs, int size);
+void ZeroExtend(int rd, int rs, int size);
 void OpUse(int op,int use);
 void OpStart(int op,int sea=0,int tea=0,int op_changes_cycles=0,int supervisor_check=0);
 void OpEnd(int sea=0,int tea=0);
