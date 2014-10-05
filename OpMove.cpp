@@ -133,30 +133,30 @@ int OpMove(int op)
 
   if (movea==0)
   {
-    EaCalcRead(-1,1,sea,size,0x003f,1,1);
+    EaCalcRead(-1,1,sea,size,0x003f,earwt_sign_extend,1);
     OpGetFlagsNZ(1);
     ot("\n");
   }
   else
   {
-    EaCalcRead(-1,1,sea,size,0x003f);
+    EaCalcRead(-1,1,sea,size,0x003f,earwt_sign_extend);
     size=2; // movea always expands to 32-bits
   }
 
   eawrite_check_addrerr=1;
 #if SPLIT_MOVEL_PD
   if ((tea&0x38)==0x20 && size==2) { // -(An)
-    EaCalc (8,0x0e00,tea,size,0,0);
+    EaCalc (8,0x0e00,tea,size,earwt_msb_dont_care);
     ot("  mov r11,r1\n");
     ot("  add r0,r8,#2\n");
-    EaWrite(0,     1,tea,1,0x0e00,0,0);
-    EaWrite(8,    11,tea,1,0x0e00,1);
+    EaWrite(0,     1,tea,1,0x0e00,earwt_msb_dont_care);
+    EaWrite(8,    11,tea,1,0x0e00,earwt_shifted_up);
   }
   else
 #endif
   {
-    EaCalc (0,0x0e00,tea,size,0,0);
-    EaWrite(0,     1,tea,size,0x0e00,0,0);
+    EaCalc (0,0x0e00,tea,size,earwt_msb_dont_care);
+    EaWrite(0,     1,tea,size,0x0e00,earwt_msb_dont_care);
   }
 
 #if CYCLONE_FOR_GENESIS && !MEMHANDLERS_CHANGE_CYCLES
@@ -239,13 +239,13 @@ int OpMoveSr(int op)
   {
     eawrite_check_addrerr=1;
     OpFlagsToReg(type==0);
-    EaCalc (0,0x003f,ea,size,0,0);
-    EaWrite(0,     1,ea,size,0x003f,0,0);
+    EaCalc (0,0x003f,ea,size,earwt_msb_dont_care);
+    EaWrite(0,     1,ea,size,0x003f,earwt_msb_dont_care);
   }
 
   if (type==2 || type==3)
   {
-    EaCalcReadNoSE(-1,0,ea,size,0x003f);
+    EaCalcRead(-1,0,ea,size,0x003f,earwt_msb_dont_care);
     OpRegToFlags(type==3,1);
     if (type==3) {
       SuperChange(op,1);
@@ -278,7 +278,7 @@ int OpArithSr(int op)
 
   OpStart(op,ea,0,0,size!=0); Cycles=16;
 
-  EaCalcRead(-1,0,ea,size,0x003f);
+  EaCalcRead(-1,0,ea,size,0x003f,earwt_sign_extend);
 
   ot("  eor r1,r0,r0,ror #1 ;@ Bit 0=C^V\n");
   ot("  tst r1,#1           ;@ 1 if C!=V\n");
@@ -435,10 +435,10 @@ int OpMovem(int op)
 #if SPLIT_MOVEL_PD
     if (decr && size==2) { // -(An)
       ot("  add r0,r6,#2\n");
-      EaWrite(0,1,ea,1,0x003f,0,0);
+      EaWrite(0,1,ea,1,0x003f,earwt_msb_dont_care);
       ot("  ldr r1,[r7,r4] ;@ Load value from Dn/An\n");
       ot("  mov r0,r6\n");
-      EaWrite(0,1,ea,1,0x003f,1);
+      EaWrite(0,1,ea,1,0x003f,earwt_shifted_up);
     }
     else
 #endif
@@ -500,13 +500,13 @@ int OpMoveUsp(int op)
   {
     eawrite_check_addrerr=1;
     ot("  ldr r1,[r7,#0x48] ;@ Get from USP\n\n");
-    EaCalc (0,0x000f,8,2,1);
-    EaWrite(0,     1,8,2,0x000f,1);
+    EaCalc (0,0x000f,8,2);
+    EaWrite(0,     1,8,2,0x000f);
   }
   else
   {
-    EaCalc (0,0x000f,8,2,1);
-    EaRead (0,     0,8,2,0x000f,1);
+    EaCalc (0,0x000f,8,2);
+    EaRead (0,     0,8,2,0x000f);
     ot("  str r0,[r7,#0x48] ;@ Put in USP\n\n");
   }
     
@@ -595,7 +595,7 @@ int OpMovep(int op)
   
   if(dir) // reg to mem
   {
-    EaCalcReadNoSE(-1,11,rea,size,0x0e00);
+    EaCalcRead(-1,11,rea,size,0x0e00,earwt_msb_dont_care);
 
     EaCalc(8,0x000f,ea,size);
     if(size==2) { // if operand is long
@@ -616,24 +616,24 @@ int OpMovep(int op)
   }
   else // mem to reg
   {
-    EaCalc(6,0x000f,ea,size,1);
-    EaRead(6,11,ea,0,0x000f,1); // read first byte
+    EaCalc(6,0x000f,ea,size,earwt_shifted_up);
+    EaRead(6,11,ea,0,0x000f,earwt_shifted_up); // read first byte
     ot("  add r0,r6,#2\n");
-    EaRead(0,1,ea,0,0x000f,1); // read second byte
+    EaRead(0,1,ea,0,0x000f,earwt_shifted_up); // read second byte
     if(size==2) { // if operand is long
       ot("  orr r11,r11,r1,lsr #8 ;@ second byte\n");
       ot("  add r0,r6,#4\n");
-      EaRead(0,1,ea,0,0x000f,1);
+      EaRead(0,1,ea,0,0x000f,earwt_shifted_up);
       ot("  orr r11,r11,r1,lsr #16 ;@ third byte\n");
       ot("  add r0,r6,#6\n");
-      EaRead(0,1,ea,0,0x000f,1);
+      EaRead(0,1,ea,0,0x000f,earwt_shifted_up);
       ot("  orr r1,r11,r1,lsr #24 ;@ fourth byte\n");
     } else {
       ot("  orr r1,r11,r1,lsr #8 ;@ second byte\n");
     }
     // store the result
-    EaCalc(0,0x0e00,rea,size,1);
-    EaWrite(0,1,rea,size,0x0e00,1);
+    EaCalc(0,0x0e00,rea,size,earwt_shifted_up);
+    EaWrite(0,1,rea,size,0x0e00,earwt_shifted_up);
     ot("  ldr r6,[r7,#0x54]\n");
   }
 
