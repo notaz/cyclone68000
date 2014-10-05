@@ -96,6 +96,7 @@ void SuperChange(int op,int srh_reg)
 // Emit a Move opcode, 00xxdddd ddssssss
 int OpMove(int op)
 {
+  EaRWType eatype;
   int sea=0,tea=0;
   int size=0,use=0;
   int movea=0;
@@ -133,13 +134,25 @@ int OpMove(int op)
 
   if (movea==0)
   {
-    EaCalcRead(-1,1,sea,size,0x003f,earwt_sign_extend,1);
-    OpGetFlagsNZ(1);
+    if (sea < 0x10 && size < 2)
+    {
+      eatype = earwt_zero_extend;
+      EaCalcRead(-1,1,sea,size,0x003f,eatype);
+      ot("  movs r2,r1,lsl #%d\n",size?16:24);
+      OpGetFlagsNZ(2);
+    }
+    else
+    {
+      eatype = earwt_shifted_up;
+      EaCalcRead(-1,1,sea,size,0x003f,eatype,1);
+      OpGetFlagsNZ(1);
+    }
     ot("\n");
   }
   else
   {
-    EaCalcRead(-1,1,sea,size,0x003f,earwt_sign_extend);
+    eatype = earwt_sign_extend;
+    EaCalcRead(-1,1,sea,size,0x003f,eatype);
     size=2; // movea always expands to 32-bits
   }
 
@@ -155,8 +168,8 @@ int OpMove(int op)
   else
 #endif
   {
-    EaCalc (0,0x0e00,tea,size,earwt_msb_dont_care);
-    EaWrite(0,     1,tea,size,0x0e00,earwt_msb_dont_care);
+    EaCalc (0,0x0e00,tea,size,eatype);
+    EaWrite(0,     1,tea,size,0x0e00,eatype);
   }
 
 #if CYCLONE_FOR_GENESIS && !MEMHANDLERS_CHANGE_CYCLES

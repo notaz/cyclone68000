@@ -338,7 +338,7 @@ int EaRead(int a,int v,int ea,int size,int mask,EaRWType type,int set_nz)
 
     if      (lsl>0) ot("  ldr%s r%d,[r7,r%d,lsl #%i]\n",Narm[nsarm],v,a,lsl);
     else if (lsl<0) ot("  ldr%s r%d,[r7,r%d,lsr #%i]\n",Narm[nsarm],v,a,-lsl);
-    else            ot("  ldr%s r%d,[r7,r%d]\n",Sarm[nsarm],v,a);
+    else            ot("  ldr%s r%d,[r7,r%d]\n",type==earwt_sign_extend?Sarm[nsarm]:Narm[nsarm],v,a);
 
     if (type == earwt_shifted_up && shift)
       ot("  mov%s r%d,r%d,asl #%d\n",s,v,v,shift);
@@ -472,7 +472,7 @@ int EaWrite(int a,int v,int ea,int size,int mask,EaRWType type)
     }
 
     ot(";@ EaWrite: r%d into register[r%d]:\n",v,a);
-    if (shift)  ot("  mov r%d,r%d,asr #%d\n",v,v,shift);
+    if (shift)  ot("  mov r%d,r%d,lsr #%d\n",v,v,shift);
 
     if      (lsl>0) ot("  str%s r%d,[r7,r%d,lsl #%i]\n",Narm[size&3],v,a,lsl);
     else if (lsl<0) ot("  str%s r%d,[r7,r%d,lsr #%i]\n",Narm[size&3],v,a,-lsl);
@@ -485,8 +485,30 @@ int EaWrite(int a,int v,int ea,int size,int mask,EaRWType type)
 
   if (ea==0x3c) { ot("Error! Write EA=0x%x\n\n",ea); return 1; }
 
-  if (shift)     ot("  mov r1,r%d,asr #%d\n",v,shift);
-  else if (v!=1) ot("  mov r1,r%d\n",v);
+  if (shift)
+  {
+    ot("  mov r1,r%d,lsr #%d\n",v,shift);
+  }
+  else if (v != 1 || (size < 2 && type != earwt_zero_extend))
+  {
+    switch (size) {
+    case 0:
+      ot("  and r1,r%d,#0xff\n",v);
+      break;
+    case 1:
+      if (type != earwt_zero_extend)
+      {
+        ot("  mov r1,r%d,lsl #16\n",v);
+        ot("  mov r1,r1,lsr #16\n");
+        break;
+      }
+      // fallthrough
+    case 2:
+    default:
+      ot("  mov r1,r%d\n",v);
+      break;
+    }
+  }
 
   MemHandler(1,size,a,eawrite_check_addrerr); // Call write handler
 
