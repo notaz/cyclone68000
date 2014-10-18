@@ -169,13 +169,14 @@ static void AddressErrorWrapper(char rw, const char *dataprg, int iw)
 }
 #endif
 
-void FlushPC(void)
+void FlushPC(int force)
 {
 #if MEMHANDLERS_NEED_PC
-  if (pc_dirty)
-    ot("  str r4,[r7,#0x40] ;@ Save PC\n");
-#endif
+  force |= pc_dirty;
   pc_dirty = 0;
+#endif
+  if (force)
+    ot("  str r4,[r7,#0x40] ;@ Save PC\n");
 }
 
 static void PrintFramework()

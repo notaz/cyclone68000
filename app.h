@@ -58,7 +58,7 @@ extern int  arm_op_count; // for stats
 void ot(const char *format, ...);
 void ltorg();
 int MemHandler(int type,int size,int addrreg=0,int need_addrerr_check=1);
-void FlushPC(void);
+void FlushPC(int force=0);
 
 // OpAny.cpp
 extern int g_op;

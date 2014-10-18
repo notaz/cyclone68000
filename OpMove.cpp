@@ -406,7 +406,7 @@ int OpMovem(int op)
   EaCalc(6,0x003f,cea,size);
 
   // must save PC, need a spare register
-  FlushPC();
+  FlushPC(1);
 
   ot(";@ r4=Register Index*4:\n");
   if (decr) ot("  mov r4,#0x40 ;@ order reversed for -(An)\n");
