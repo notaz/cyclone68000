@@ -434,14 +434,14 @@ int OpMovem(int op)
 
   if (dir)
   {
-    ot("  ;@ Copy memory to register:\n",1<<size);
+    ot("  ;@ Copy memory to register:\n");
     earead_check_addrerr=0; // already checked
     EaRead (6,0,ea,size,0x003f);
     ot("  str r0,[r7,r4] ;@ Save value into Dn/An\n");
   }
   else
   {
-    ot("  ;@ Copy register to memory:\n",1<<size);
+    ot("  ;@ Copy register to memory:\n");
     ot("  ldr r1,[r7,r4] ;@ Load value from Dn/An\n");
 #if SPLIT_MOVEL_PD
     if (decr && size==2) { // -(An)

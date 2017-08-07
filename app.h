@@ -55,7 +55,11 @@ extern const char * const Sarm[4]; // Sign-extend ARM Extensions for operand siz
 extern int  Cycles;   // Current cycles for opcode
 extern int  pc_dirty; // something changed PC during processing
 extern int  arm_op_count; // for stats
-void ot(const char *format, ...);
+void ot(const char *format, ...)
+#ifdef __GNUC__
+  __attribute__((format(printf, 1, 2)));
+#endif
+  ;
 void ltorg();
 int MemHandler(int type,int size,int addrreg=0,int need_addrerr_check=1);
 void FlushPC(int force=0);

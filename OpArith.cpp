@@ -508,15 +508,15 @@ int OpNbcd(int op)
   ot("  beq finish%.4x\n",op);
   ot("\n");
 
-  ot("  mvn r3,r11,lsr #31 ;@ Undefined V behavior\n",op);
+  ot("  mvn r3,r11,lsr #31 ;@ Undefined V behavior\n");
   ot("  and r2,r11,#0x0f000000\n");
   ot("  cmp r2,#0x0a000000\n");
   ot("  andeq r11,r11,#0xf0000000\n");
   ot("  addeq r11,r11,#0x10000000\n");
-  ot("  and r3,r3,r11,lsr #31 ;@ Undefined V behavior part II\n",op);
+  ot("  and r3,r3,r11,lsr #31 ;@ Undefined V behavior part II\n");
   ot("  movs r1,r11,asr #24\n");
   ot("  bicne r10,r10,#0x40000000 ;@ Z\n");
-  ot("  orr r10,r10,r3,lsl #28 ;@ save V\n",op);
+  ot("  orr r10,r10,r3,lsl #28 ;@ save V\n");
   ot("  orr r10,r10,#0x20000000 ;@ C\n");
   ot("\n");
 
