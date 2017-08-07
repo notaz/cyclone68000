@@ -48,7 +48,10 @@ struct Cyclone
   int  (*IrqCallback)(int int_level);       // [r7,#0x8c] optional irq callback function, see config.h
   void (*ResetCallback)(void);              // [r7,#0x90] if enabled in config.h, calls this whenever RESET opcode is encountered.
   int  (*UnrecognizedCallback)(void);       // [r7,#0x94] if enabled in config.h, calls this whenever unrecognized opcode is encountered.
-  unsigned int internal[6];                 // [r7,#0x98] reserved for internal use, do not change.
+  void *internal_CycloneEnd;                // [r7,#0x98] internal, do not modify
+  int   internal_s_cycles;                  // [r7,#0x9c] internal, do not modify
+  void *internal_s_CycloneEnd;              // [r7,#0xa0] internal, do not modify
+  unsigned int internal[3];                 // [r7,#0xa4] reserved for internal use, do not change.
 };
 
 // Initialize. Used only if Cyclone was compiled with compressed jumptable, see config.h

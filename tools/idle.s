@@ -33,8 +33,11 @@ patch_desc_table:
 .global CycloneInitIdle
 
 CycloneInitIdle:
-    ldr     r3, =CycloneJumpTab
-    ldr     r2, =patch_desc_table
+    adr     r12,offset_table
+    ldr     r3, [r12, #2*4] @ =CycloneJumpTab-ot
+    ldr     r2, [r12, #1*4] @ =patch_desc_table-ot
+    add     r3, r3, r12
+    add     r2, r2, r12
     mov     r12,#patch_desc_table_size
 
 cii_loop:
@@ -51,22 +54,30 @@ cii_loop:
     subs    r12,r12,#1
     bgt     cii_loop
 
-    ldr     r0, =have_patches
+    adr     r12,offset_table
+    ldr     r0, [r12, #0*4] @ =have_patches-ot
     mov     r1, #1
-    str     r1, [r0]
+    str     r1, [r0, r12]
     bx      lr
 
 
 .global CycloneFinishIdle
 
 CycloneFinishIdle:
-    ldr     r0, =have_patches
-    ldr     r0, [r0]
+    adr     r12,offset_table
+    ldr     r3, [r12, #0*4] @ =have_patches-ot
+    ldr     r0, [r3, r12]!
     tst     r0, r0
     bxeq    lr
 
-    ldr     r3, =CycloneJumpTab
-    ldr     r2, =patch_desc_table
+    stmfd   sp!, {r4,r5}
+    mov     r5, r3
+    ldr     r2, [r12, #1*4] @ =patch_desc_table-ot
+    ldr     r3, [r12, #2*4] @ =CycloneJumpTab-ot
+    ldr     r4, [r12, #3*4] @ =Op____-ot
+    add     r2, r2, r12
+    add     r3, r3, r12
+    add     r4, r4, r12
     mov     r12,#patch_desc_table_size
 
 cfi_loop:
@@ -74,17 +85,16 @@ cfi_loop:
     ldr     r1, [r2, #12]         @ normal
     str     r1, [r3, r0, lsl #2]
     ldrh    r0, [r2, #2]
-    ldr     r1, =Op____
     add     r0, r3, r0, lsl #2
-    str     r1, [r0]
-    str     r1, [r0, #0x800]
+    str     r4, [r0]              @ Op____
+    str     r4, [r0, #0x800]
     add     r2, r2, #16
     subs    r12,r12,#1
     bgt     cfi_loop
 
-    ldr     r0, =have_patches
     mov     r1, #0
-    str     r1, [r0]
+    str     r1, [r5]              @ have_patches
+    ldmfd   sp!, {r4,r5}
     bx      lr
 
 
@@ -154,14 +164,15 @@ idle_detector_bcc8:
     ble     exit_detector
 
     @ remove detector from Cyclone
+    adr     r12,offset_table
     mov     r0, r8, lsr #8
     cmp     r0, #0x66
-    ldrlt   r1, =Op6002
-    ldreq   r1, =Op6602
-    ldrgt   r1, =Op6702
+    ldrlt   r1, [r12, #4*4] @ =Op6002-ot
+    ldreq   r1, [r12, #4*5] @ =Op6602-ot
+    ldrgt   r1, [r12, #4*6] @ =Op6702-ot
+    add     r1, r1, r12
 
-    ldr     r3, =CycloneJumpTab
-    str     r1, [r3, r8, lsl #2]
+    str     r1, [r6, r8, lsl #2]
     bx      r1
 
 exit_detector:
@@ -171,3 +182,11 @@ exit_detector:
     beq     Op6602
     b       Op6702
 
+offset_table:
+    .word have_patches - offset_table
+    .word patch_desc_table - offset_table
+    .word CycloneJumpTab - offset_table
+    .word Op____ - offset_table
+    .word Op6002 - offset_table
+    .word Op6602 - offset_table     @ 5
+    .word Op6702 - offset_table

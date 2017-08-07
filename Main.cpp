@@ -111,49 +111,28 @@ void ltorg()
 }
 
 #if (CYCLONE_FOR_GENESIS == 2)
-// r12=ptr to tas in table, trashes r0,r1
-static void ChangeTAS(int norm)
+static const char *tas_ops[] = {
+  "Op4ad0", "Op4ad8", "Op4adf",
+  "Op4ae0", "Op4ae7", "Op4ae8",
+  "Op4af0", "Op4af8", "Op4af9",
+};
+
+// get handler address in r0, OT (offset table) in r2
+static void ChangeTASGet(unsigned int i)
 {
-  ot("  ldr r0,=Op4ad0%s\n",norm?"_":"");
-  ot("  mov r1,#8\n");
-  ot("setrtas_loop%i0%s ;@ 4ad0-4ad7\n",norm,ms?"":":");
-  ot("  subs r1,r1,#1\n");
-  ot("  str r0,[r12],#4\n");
-  ot("  bne setrtas_loop%i0\n",norm);
-  ot("  ldr r0,=Op4ad8%s\n",norm?"_":"");
-  ot("  mov r1,#7\n");
-  ot("setrtas_loop%i1%s ;@ 4ad8-4ade\n",norm,ms?"":":");
-  ot("  subs r1,r1,#1\n");
-  ot("  str r0,[r12],#4\n");
-  ot("  bne setrtas_loop%i1\n",norm);
-  ot("  ldr r0,=Op4adf%s\n",norm?"_":"");
-  ot("  str r0,[r12],#4\n");
-  ot("  ldr r0,=Op4ae0%s\n",norm?"_":"");
-  ot("  mov r1,#7\n");
-  ot("setrtas_loop%i2%s ;@ 4ae0-4ae6\n",norm,ms?"":":");
-  ot("  subs r1,r1,#1\n");
-  ot("  str r0,[r12],#4\n");
-  ot("  bne setrtas_loop%i2\n",norm);
-  ot("  ldr r0,=Op4ae7%s\n",norm?"_":"");
-  ot("  str r0,[r12],#4\n");
-  ot("  ldr r0,=Op4ae8%s\n",norm?"_":"");
-  ot("  mov r1,#8\n");
-  ot("setrtas_loop%i3%s ;@ 4ae8-4aef\n",norm,ms?"":":");
-  ot("  subs r1,r1,#1\n");
-  ot("  str r0,[r12],#4\n");
-  ot("  bne setrtas_loop%i3\n",norm);
-  ot("  ldr r0,=Op4af0%s\n",norm?"_":"");
-  ot("  mov r1,#8\n");
-  ot("setrtas_loop%i4%s ;@ 4af0-4af7\n",norm,ms?"":":");
-  ot("  subs r1,r1,#1\n");
-  ot("  str r0,[r12],#4\n");
-  ot("  bne setrtas_loop%i4\n",norm);
-  ot("  ldr r0,=Op4af8%s\n",norm?"_":"");
-  ot("  str r0,[r12],#4\n");
-  ot("  ldr r0,=Op4af9%s\n",norm?"_":"");
-  ot("  str r0,[r12],#4\n");
+  if (i >= sizeof(tas_ops) / sizeof(tas_ops[0]))
+    abort();
+  ot("  ldr r0,[r2,#%d*4] ;@ %s\n",i,tas_ops[i]);
+  ot("  add r0,r0,r2\n");
 }
 #endif
+
+static void LoadCycloneJumpTab(int reg, int tmp)
+{
+  ot("  adr r%d,CycloneOT_JT\n", tmp);
+  ot("  ldr r%d,[r%d] ;@ CycloneJumpTab-CycloneOT_JT\n", reg, tmp);
+  ot("  add r%d,r%d,r%d ;@ =CycloneJumpTab\n", reg, reg, tmp);
+}
 
 #if EMULATE_ADDRESS_ERRORS_JUMP || EMULATE_ADDRESS_ERRORS_IO
 static void AddressErrorWrapper(char rw, const char *dataprg, int iw)
@@ -198,14 +177,13 @@ static void PrintFramework()
   ot("  mov r7,r0          ;@ r7 = Pointer to Cpu Context\n");
   ot("                     ;@ r0-3 = Temporary registers\n");
   ot("  ldrb r10,[r7,#0x46]    ;@ r10 = Flags (NZCV)\n");
-  ot("  ldr r6,=CycloneJumpTab ;@ r6 = Opcode Jump table\n");
+  ot("  ldr r6,[r7,#0x54]  ;@ r6 = Opcode Jump table (from reset)\n");
   ot("  ldr r5,[r7,#0x5c]  ;@ r5 = Cycles\n");
   ot("  ldr r4,[r7,#0x40]  ;@ r4 = Current PC + Memory Base\n");
   ot("                     ;@ r8 = Current Opcode\n");
   ot("  ldr r1,[r7,#0x44]  ;@ Get SR high T_S__III and irq level\n");
   ot("  mov r10,r10,lsl #28;@ r10 = Flags 0xf0000000, cpsr format\n");
   ot("                     ;@ r11 = Source value / Memory Base\n");
-  ot("  str r6,[r7,#0x54]  ;@ make a copy to avoid literal pools\n");
   ot("\n");
 #if (CYCLONE_FOR_GENESIS == 2) || EMULATE_TRACE
   ot("  mov r2,#0\n");
@@ -262,7 +240,7 @@ static void PrintFramework()
   ot("CycloneInit%s\n", ms?"":":");
 #if COMPRESS_JUMPTABLE
   ot(";@ decompress jump table\n");
-  ot("  ldr r12,=CycloneJumpTab\n");
+  LoadCycloneJumpTab(12, 1);
   ot("  add r0,r12,#0xe000*4 ;@ ctrl code pointer\n");
   ot("  ldr r1,[r0,#-4]\n");
   ot("  tst r1,r1\n");
@@ -288,7 +266,7 @@ static void PrintFramework()
   ot("  bgt unc_loop_in\n");
   ot("  b unc_loop\n");
   ot("unc_finish%s\n", ms?"":":");
-  ot("  ldr r12,=CycloneJumpTab\n");
+  LoadCycloneJumpTab(12, 1);
   ot("  ;@ set a-line and f-line handlers\n");
   ot("  add r0,r12,#0xa000*4\n");
   ot("  ldr r1,[r0,#4] ;@ a-line handler\n");
@@ -308,7 +286,7 @@ static void PrintFramework()
   ltorg();
 #else
   ot(";@ fix final jumptable entries\n");
-  ot("  ldr r12,=CycloneJumpTab\n");
+  LoadCycloneJumpTab(12, 0);
   ot("  add r12,r12,#0x10000*4\n");
   ot("  ldr r0,[r12,#-3*4]\n");
   ot("  str r0,[r12,#-2*4]\n");
@@ -320,7 +298,9 @@ static void PrintFramework()
   // --------------
   ot("CycloneReset%s\n", ms?"":":");
   ot("  stmfd sp!,{r7,lr}\n");
+  LoadCycloneJumpTab(12, 1);
   ot("  mov r7,r0\n");
+  ot("  str r12,[r7,#0x54] ;@ save CycloneJumpTab avoid literal pools\n");
   ot("  mov r0,#0\n");
   ot("  str r0,[r7,#0x58] ;@ state_flags\n");
   ot("  str r0,[r7,#0x48] ;@ OSP\n");
@@ -342,6 +322,77 @@ static void PrintFramework()
   ot("  str r0,[r7,#0x40] ;@ PC + base\n");
   ot("  ldmfd sp!,{r7,pc}\n");
   ot("\n");
+
+  // --------------
+  ot("CycloneSetRealTAS%s\n", ms?"":":");
+#if (CYCLONE_FOR_GENESIS == 2)
+  LoadCycloneJumpTab(12, 1);
+  ot("  tst r0,r0\n");
+  ot("  add r12,r12,#0x4a00*4\n");
+  ot("  add r12,r12,#0x00d0*4\n");
+  ot("  adr r2,CycloneOT_TAS_\n");
+  ot("  addeq r2,r2,#%lu*4\n", sizeof(tas_ops) / sizeof(tas_ops[0]));
+
+  ChangeTASGet(0);
+  ot("  mov r1,#8\n");
+  ot("setrtas_loop0%s ;@ 4ad0-4ad7\n",ms?"":":");
+  ot("  subs r1,r1,#1\n");
+  ot("  str r0,[r12],#4\n");
+  ot("  bne setrtas_loop0\n");
+
+  ChangeTASGet(1);
+  ot("  mov r1,#7\n");
+  ot("setrtas_loop1%s ;@ 4ad8-4ade\n",ms?"":":");
+  ot("  subs r1,r1,#1\n");
+  ot("  str r0,[r12],#4\n");
+  ot("  bne setrtas_loop1\n");
+
+  ChangeTASGet(2);
+  ot("  str r0,[r12],#4\n");
+  ChangeTASGet(3);
+  ot("  mov r1,#7\n");
+  ot("setrtas_loop2%s ;@ 4ae0-4ae6\n",ms?"":":");
+  ot("  subs r1,r1,#1\n");
+  ot("  str r0,[r12],#4\n");
+  ot("  bne setrtas_loop2\n");
+
+  ChangeTASGet(4);
+  ot("  str r0,[r12],#4\n");
+  ChangeTASGet(5);
+  ot("  mov r1,#8\n");
+  ot("setrtas_loop3%s ;@ 4ae8-4aef\n",ms?"":":");
+  ot("  subs r1,r1,#1\n");
+  ot("  str r0,[r12],#4\n");
+  ot("  bne setrtas_loop3\n");
+
+  ChangeTASGet(6);
+  ot("  mov r1,#8\n");
+  ot("setrtas_loop4%s ;@ 4af0-4af7\n",ms?"":":");
+  ot("  subs r1,r1,#1\n");
+  ot("  str r0,[r12],#4\n");
+  ot("  bne setrtas_loop4\n");
+
+  ChangeTASGet(7);
+  ot("  str r0,[r12],#4\n");
+  ChangeTASGet(8);
+  ot("  str r0,[r12],#4\n");
+#endif
+  ot("  bx lr\n");
+  ot("\n");
+
+  // --------------
+  // offset table to avoid .text relocations (forbidden by Android and iOS)
+  ot("CycloneOT_JT%s\n", ms?"":":");
+  ot("  %s %s-CycloneOT_JT\n", ms?"dcd":".long", "CycloneJumpTab");
+#if (CYCLONE_FOR_GENESIS == 2)
+  ot("CycloneOT_TAS_%s\n", ms?"":":"); // working TAS (no MD bug)
+  for (size_t i = 0; i < sizeof(tas_ops) / sizeof(tas_ops[0]); i++)
+    ot("  %s %s_-CycloneOT_TAS_\n", ms?"dcd":".long", tas_ops[i]);
+  ot("CycloneOT_TAS%s\n", ms?"":":"); // broken TAS
+  for (size_t i = 0; i < sizeof(tas_ops) / sizeof(tas_ops[0]); i++)
+    ot("  %s %s-CycloneOT_TAS\n", ms?"dcd":".long", tas_ops[i]);
+  ot("\n");
+#endif
 
   // --------------
   // 68k: XNZVC, ARM: NZCV
@@ -492,25 +543,6 @@ static void PrintFramework()
   ot("  ldmia sp!,{r4,r5,r7,r8,r10,r11,lr}\n");
   ot("  bx lr\n");
   ot("\n");
-  ot("\n");
-
-  // --------------
-  ot("CycloneSetRealTAS%s\n", ms?"":":");
-#if (CYCLONE_FOR_GENESIS == 2)
-  ot("  ldr r12,=CycloneJumpTab\n");
-  ot("  tst r0,r0\n");
-  ot("  add r12,r12,#0x4a00*4\n");
-  ot("  add r12,r12,#0x00d0*4\n");
-  ot("  beq setrtas_off\n");
-  ChangeTAS(1);
-  ot("  bx lr\n");
-  ot("setrtas_off%s\n",ms?"":":");
-  ChangeTAS(0);
-  ot("  bx lr\n");
-  ltorg();
-#else
-  ot("  bx lr\n");
-#endif
   ot("\n");
 
   // --------------
