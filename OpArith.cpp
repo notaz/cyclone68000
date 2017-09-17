@@ -397,8 +397,8 @@ int OpAbcd(int op)
   if (mem)
   {
     ot(";@ Get src/dest EA vals\n");
-    EaCalc (0,0x000f, sea,0,earwt_shifted_up);
-    EaRead (0,     6, sea,0,0x000f,earwt_shifted_up);
+    EaCalc (0,0x000f, sea,0,earwt_msb_dont_care);
+    EaRead (0,     6, sea,0,0x000f,earwt_msb_dont_care);
     EaCalcRead(11,0,dea,0,0x0e00,earwt_msb_dont_care);
   }
   else
@@ -406,67 +406,60 @@ int OpAbcd(int op)
     ot(";@ Get src/dest reg vals\n");
     EaCalcRead(-1,6,sea,0,0x0007,earwt_msb_dont_care);
     EaCalcRead(11,0,dea,0,0x0e00,earwt_msb_dont_care);
-    ot("  mov r6,r6,asl #24\n");
   }
-  ot("  mov r1,r0,asl #24\n\n");
 
   ot("  bic r10,r10,#0xb1000000 ;@ clear all flags except old Z\n");
 
+  ot("  ldr r1,[r7,#0x4c] ;@ Get X bit\n");
+  ot("  and r2,r0,#0x0f\n");
+  ot("  movs r12,r1,lsl #3 ;@ X into carry\n");
+  ot("  and r1,r6,#0x0f\n");
   if (type)
   {
-    ot("  ldr r0,[r7,#0x4c] ;@ Get X bit\n");
-    ot("  mov r3,#0x00f00000\n");
-    ot("  and r2,r3,r1,lsr #4\n");
-    ot("  tst r0,#0x20000000\n");
-    ot("  and r0,r3,r6,lsr #4\n");
-    ot("  add r0,r0,r2\n");
-    ot("  addne r0,r0,#0x00100000\n");
-//    ot("  tst r0,#0x00800000\n");
-//    ot("  orreq r10,r10,#0x01000000 ;@ Undefined V behavior\n");
-    ot("  cmp r0,#0x00900000\n");
-    ot("  addhi r0,r0,#0x00600000 ;@ Decimal adjust units\n");
+    // abcd
+    ot("  adc r1,r2,r1\n");
+    ot("  cmp r1,#9\n");
 
-    ot("  mov r2,r1,lsr #28\n");
-    ot("  add r0,r0,r2,lsl #24\n");
-    ot("  mov r2,r6,lsr #28\n");
-    ot("  add r0,r0,r2,lsl #24\n");
-    ot("  cmp r0,#0x09900000\n");
+    ot("  and r0,r0,#0xf0\n");
+    ot("  and r6,r6,#0xf0\n");
+    ot("  add r1,r1,r0\n");
+    ot("  add r1,r1,r6\n");
+    ot("  mov r12,r1\n");
+    ot("  addhi r12,#6 ;@ Decimal adjust units\n");
+    ot("  tst r1,#0x80\n");
+    ot("  orreq r10,r10,#0x10000000 ;@ Undefined V behavior\n");
+    ot("  cmp r12,#0x9f\n");
     ot("  orrhi r10,r10,#0x20000000 ;@ C\n");
-    ot("  subhi r0,r0,#0x0a000000\n");
-//    ot("  and r3,r10,r0,lsr #3 ;@ Undefined V behavior part II\n");
-//    ot("  orr r10,r10,r3,lsl #4 ;@ V\n");
-    ot("  movs r0,r0,lsl #4\n");
-    ot("  orrmi r10,r10,#0x90000000 ;@ Undefined N+V behavior\n"); // this is what Musashi really does
-    ot("  bicne r10,r10,#0x40000000 ;@ Z flag\n");
+    ot("  subhi r12,r12,#0xa0\n");
+    ot("  movs r0,r12,lsl #24\n");
+    ot("  bicpl r10,r10,#0x10000000 ;@ Undefined V behavior part II\n");
   }
   else
   {
-    ot("  ldr r0,[r7,#0x4c] ;@ Get X bit\n");
-    ot("  mov r3,#0x00f00000\n");
-    ot("  and r2,r3,r6,lsr #4\n");
-    ot("  tst r0,#0x20000000\n");
-    ot("  and r0,r3,r1,lsr #4\n");
-    ot("  sub r0,r0,r2\n");
-    ot("  subne r0,r0,#0x00100000\n");
-//    ot("  tst r0,#0x00800000\n");
-//    ot("  orreq r10,r10,#0x01000000 ;@ Undefined V behavior\n");
-    ot("  cmp r0,#0x00900000\n");
-    ot("  subhi r0,r0,#0x00600000 ;@ Decimal adjust units\n");
+    // sbcd
+    ot("  mov r12,#0 ;@ corf\n");
+    ot("  adc r1,r1,#0\n");
+    ot("  sub r1,r2,r1\n");
+    ot("  cmp r1,#0x0f\n");
+    ot("  movhi r12,#6\n");
 
-    ot("  mov r2,r1,lsr #28\n");
-    ot("  add r0,r0,r2,lsl #24\n");
-    ot("  mov r2,r6,lsr #28\n");
-    ot("  sub r0,r0,r2,lsl #24\n");
-    ot("  cmp r0,#0x09900000\n");
-    ot("  orrhi r10,r10,#0xa0000000 ;@ N and C\n");
-    ot("  addhi r0,r0,#0x0a000000\n");
-//    ot("  and r3,r10,r0,lsr #3 ;@ Undefined V behavior part II\n");
-//    ot("  orr r10,r10,r3,lsl #4 ;@ V\n");
-    ot("  movs r0,r0,lsl #4\n");
-//    ot("  orrmi r10,r10,#0x80000000 ;@ Undefined N behavior\n");
-    ot("  bicne r10,r10,#0x40000000 ;@ Z flag\n");
+    ot("  and r0,r0,#0xf0\n");
+    ot("  and r6,r6,#0xf0\n");
+    ot("  add r1,r1,r0\n");
+    ot("  sub r1,r1,r6\n");
+    ot("  tst r1,#0x80\n");
+    ot("  orrne r10,r10,#0x10000000 ;@ Undefined V behavior\n");
+    ot("  cmp r1,r12\n");
+    ot("  orrlt r10,r10,#0x20000000 ;@ C\n");
+    ot("  cmp r1,#0xff\n");
+    ot("  addhi r1,#0xa0\n");
+    ot("  sub r12,r1,r12\n");
+    ot("  movs r0,r12,lsl #24\n");
+    ot("  bicmi r10,r10,#0x10000000 ;@ Undefined V behavior part II\n");
   }
 
+  ot("  orrmi r10,r10,#0x80000000 ;@ Undefined N behavior\n");
+  ot("  bicne r10,r10,#0x40000000 ;@ Z flag\n");
   ot("  str r10,[r7,#0x4c] ;@ Save X bit\n");
   ot("\n");
 
@@ -494,37 +487,34 @@ int OpNbcd(int op)
   OpStart(op,ea); Cycles=6;
   if(ea >= 8)  Cycles+=2;
 
-  EaCalcRead(6,0,ea,0,0x003f,earwt_msb_dont_care);
+  EaCalcRead(11,0,ea,0,0x003f,earwt_zero_extend);
 
   // this is rewrite of Musashi's code
   ot("  ldr r2,[r7,#0x4c]\n");
   ot("  bic r10,r10,#0xb0000000 ;@ clear all flags, except Z\n");
-  ot("  mov r0,r0,asl #24\n");
   ot("  and r2,r2,#0x20000000\n");
-  ot("  add r2,r0,r2,lsr #5 ;@ add X\n");
-  ot("  rsb r11,r2,#0x9a000000 ;@ do arithmetic\n");
+  ot("  rsb r1,r0,#0 ;@ do arithmetic\n");
+  ot("  subs r1,r1,r2,lsr #29 ;@ X\n");
 
-  ot("  cmp r11,#0x9a000000\n");
   ot("  beq finish%.4x\n",op);
   ot("\n");
 
-  ot("  mvn r3,r11,lsr #31 ;@ Undefined V behavior\n");
-  ot("  and r2,r11,#0x0f000000\n");
-  ot("  cmp r2,#0x0a000000\n");
-  ot("  andeq r11,r11,#0xf0000000\n");
-  ot("  addeq r11,r11,#0x10000000\n");
-  ot("  and r3,r3,r11,lsr #31 ;@ Undefined V behavior part II\n");
-  ot("  movs r1,r11,asr #24\n");
+  ot("  movs r1,r1,lsl #24\n");
+  ot("  orrmi r10,r10,#0x10000000 ;@ Undefined V behavior\n");
+  ot("  orr r2,r1,r0,lsl #24\n");
+  ot("  tst r2,#0x0f000000\n");
+  ot("  andeq r1,r1,#0xf0000000\n");
+  ot("  orreq r1,r1,#0x06000000\n");
+  ot("  adds r1,r1,#0x9a000000\n");
+  ot("  bicmi r10,r10,#0x10000000 ;@ Undefined V behavior part II\n");
+  ot("  orrmi r10,r10,#0x80000000 ;@ Undefined N behavior\n");
   ot("  bicne r10,r10,#0x40000000 ;@ Z\n");
-  ot("  orr r10,r10,r3,lsl #28 ;@ save V\n");
   ot("  orr r10,r10,#0x20000000 ;@ C\n");
   ot("\n");
 
-  EaWrite(6, 1, ea,0,0x3f,earwt_msb_dont_care);
+  EaWrite(11, 1, ea,0,0x3f,earwt_shifted_up);
 
   ot("finish%.4x%s\n",op,ms?"":":");
-  ot("  tst r11,r11\n");
-  ot("  orrmi r10,r10,#0x80000000 ;@ N\n");
   ot("  str r10,[r7,#0x4c] ;@ Save X\n");
   ot("\n");
 
@@ -825,3 +815,4 @@ int OpChk(int op)
   return 0;
 }
 
+// vim:ts=2:sw=2:expandtab
