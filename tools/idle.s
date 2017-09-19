@@ -8,11 +8,17 @@
 .data
 .align 2
 
+idle_data:
 have_patches:
   .word 0
+  .word Op____
+  .word Op6002
+  .word Op6602
+  .word Op6702
 
 .equ patch_desc_table_size, 10
 
+@       to             from
 patch_desc_table:
   .word (0x71fa<<16) | 0x66fa, idle_detector_bcc8, idle_bne, Op6602  @ bne.s
   .word (0x71f8<<16) | 0x66f8, idle_detector_bcc8, idle_bne, Op6602  @ bne.s
@@ -30,13 +36,12 @@ patch_desc_table:
 .align 2
 
 
-.global CycloneInitIdle
+.global CycloneInitIdleJT @ jt
 
-CycloneInitIdle:
+CycloneInitIdleJT:
     adr     r12,offset_table
-    ldr     r3, [r12, #2*4] @ =CycloneJumpTab-ot
     ldr     r2, [r12, #1*4] @ =patch_desc_table-ot
-    add     r3, r3, r12
+    mov     r3, r0          @ =CycloneJumpTab
     add     r2, r2, r12
     mov     r12,#patch_desc_table_size
 
@@ -55,29 +60,27 @@ cii_loop:
     bgt     cii_loop
 
     adr     r12,offset_table
-    ldr     r0, [r12, #0*4] @ =have_patches-ot
+    ldr     r0, [r12, #0*4] @ =idle_data-ot
     mov     r1, #1
-    str     r1, [r0, r12]
+    str     r1, [r0, r12]   @ have_patches
     bx      lr
 
 
-.global CycloneFinishIdle
+.global CycloneFinishIdleJT @ jt
 
-CycloneFinishIdle:
+CycloneFinishIdleJT:
     adr     r12,offset_table
-    ldr     r3, [r12, #0*4] @ =have_patches-ot
-    ldr     r0, [r3, r12]!
-    tst     r0, r0
+    ldr     r3, [r12, #0*4] @ =idle_data-ot
+    ldr     r1, [r3, r12]!  @ have_patches
+    tst     r1, r1
     bxeq    lr
 
     stmfd   sp!, {r4,r5}
     mov     r5, r3
     ldr     r2, [r12, #1*4] @ =patch_desc_table-ot
-    ldr     r3, [r12, #2*4] @ =CycloneJumpTab-ot
-    ldr     r4, [r12, #3*4] @ =Op____-ot
-    add     r2, r2, r12
-    add     r3, r3, r12
-    add     r4, r4, r12
+    mov     r3, r0          @ =CycloneJumpTab
+    ldr     r4, [r5, #1*4]  @ =Op____
+    add     r2, r2, r12     @ =patch_desc_table
     mov     r12,#patch_desc_table_size
 
 cfi_loop:
@@ -165,12 +168,13 @@ idle_detector_bcc8:
 
     @ remove detector from Cyclone
     adr     r12,offset_table
+    ldr     r1, [r12]       @ =idle_data-ot
     mov     r0, r8, lsr #8
     cmp     r0, #0x66
-    ldrlt   r1, [r12, #4*4] @ =Op6002-ot
-    ldreq   r1, [r12, #4*5] @ =Op6602-ot
-    ldrgt   r1, [r12, #4*6] @ =Op6702-ot
-    add     r1, r1, r12
+    add     r1, r1, r12     @ =idle_data
+    ldrlt   r1, [r1, #4*2]  @ =Op6002-ot
+    ldreq   r1, [r1, #4*3]  @ =Op6602-ot
+    ldrgt   r1, [r1, #4*4]  @ =Op6702-ot
 
     str     r1, [r6, r8, lsl #2]
     bx      r1
@@ -183,10 +187,5 @@ exit_detector:
     b       Op6702
 
 offset_table:
-    .word have_patches - offset_table
+    .word idle_data - offset_table
     .word patch_desc_table - offset_table
-    .word CycloneJumpTab - offset_table
-    .word Op____ - offset_table
-    .word Op6002 - offset_table
-    .word Op6602 - offset_table     @ 5
-    .word Op6702 - offset_table

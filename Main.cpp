@@ -127,13 +127,6 @@ static void ChangeTASGet(unsigned int i)
 }
 #endif
 
-static void LoadCycloneJumpTab(int reg, int tmp)
-{
-  ot("  adr r%d,CycloneOT_JT\n", tmp);
-  ot("  ldr r%d,[r%d] ;@ CycloneJumpTab-CycloneOT_JT\n", reg, tmp);
-  ot("  add r%d,r%d,r%d ;@ =CycloneJumpTab\n", reg, reg, tmp);
-}
-
 #if EMULATE_ADDRESS_ERRORS_JUMP || EMULATE_ADDRESS_ERRORS_IO
 static void AddressErrorWrapper(char rw, const char *dataprg, int iw)
 {
@@ -237,14 +230,16 @@ static void PrintFramework()
   ot("\n");
   ot("\n");
 
-  ot("CycloneInit%s\n", ms?"":":");
+  ot("CycloneInitJT%s\n", ms?"":":");
 #if COMPRESS_JUMPTABLE
   ot(";@ decompress jump table\n");
-  LoadCycloneJumpTab(12, 1);
+  ot("  mov r12,r0 ;@ jump table\n");
   ot("  add r0,r12,#0xe000*4 ;@ ctrl code pointer\n");
   ot("  ldr r1,[r0,#-4]\n");
   ot("  tst r1,r1\n");
   ot("  movne pc,lr ;@ already uncompressed\n");
+  ot("  stmfd sp!,{r7,lr}\n");
+  ot("  mov r7,r12 ;@ jump table\n");
   ot("  add r3,r12,#0xa000*4 ;@ handler table pointer, r12=dest\n");
   ot("unc_loop%s\n", ms?"":":");
   ot("  ldrh r1,[r0],#2\n");
@@ -266,9 +261,8 @@ static void PrintFramework()
   ot("  bgt unc_loop_in\n");
   ot("  b unc_loop\n");
   ot("unc_finish%s\n", ms?"":":");
-  LoadCycloneJumpTab(12, 1);
   ot("  ;@ set a-line and f-line handlers\n");
-  ot("  add r0,r12,#0xa000*4\n");
+  ot("  add r0,r7,#0xa000*4\n");
   ot("  ldr r1,[r0,#4] ;@ a-line handler\n");
   ot("  ldr r3,[r0,#8] ;@ f-line handler\n");
   ot("  mov r2,#0x1000\n");
@@ -276,31 +270,29 @@ static void PrintFramework()
   ot("  subs r2,r2,#1\n");
   ot("  str r1,[r0],#4\n");
   ot("  bgt unc_fill3\n");
-  ot("  add r0,r12,#0xf000*4\n");
+  ot("  add r0,r7,#0xf000*4\n");
   ot("  mov r2,#0x1000\n");
   ot("unc_fill4%s\n", ms?"":":");
   ot("  subs r2,r2,#1\n");
   ot("  str r3,[r0],#4\n");
   ot("  bgt unc_fill4\n");
-  ot("  bx lr\n");
+  ot("  ldmfd sp!,{r7,pc}\n");
   ltorg();
 #else
   ot(";@ fix final jumptable entries\n");
-  LoadCycloneJumpTab(12, 0);
-  ot("  add r12,r12,#0x10000*4\n");
-  ot("  ldr r0,[r12,#-3*4]\n");
-  ot("  str r0,[r12,#-2*4]\n");
-  ot("  str r0,[r12,#-1*4]\n");
+  ot("  add r0,r0,#0x10000*4\n");
+  ot("  ldr r1,[r0,#-3*4]\n");
+  ot("  str r1,[r0,#-2*4]\n");
+  ot("  str r1,[r0,#-1*4]\n");
   ot("  bx lr\n");
 #endif
   ot("\n");
 
   // --------------
-  ot("CycloneReset%s\n", ms?"":":");
+  ot("CycloneResetJT%s\n", ms?"":":");
   ot("  stmfd sp!,{r7,lr}\n");
-  LoadCycloneJumpTab(12, 1);
   ot("  mov r7,r0\n");
-  ot("  str r12,[r7,#0x54] ;@ save CycloneJumpTab avoid literal pools\n");
+  ot("  str r1,[r7,#0x54] ;@ save CycloneJumpTab avoid literal pools\n");
   ot("  mov r0,#0\n");
   ot("  str r0,[r7,#0x58] ;@ state_flags\n");
   ot("  str r0,[r7,#0x48] ;@ OSP\n");
@@ -324,11 +316,10 @@ static void PrintFramework()
   ot("\n");
 
   // --------------
-  ot("CycloneSetRealTAS%s\n", ms?"":":");
+  ot("CycloneSetRealTAS_JT%s\n", ms?"":":");
 #if (CYCLONE_FOR_GENESIS == 2)
-  LoadCycloneJumpTab(12, 1);
   ot("  tst r0,r0\n");
-  ot("  add r12,r12,#0x4a00*4\n");
+  ot("  add r12,r1,#0x4a00*4\n");
   ot("  add r12,r12,#0x00d0*4\n");
   ot("  adr r2,CycloneOT_TAS_\n");
   ot("  addeq r2,r2,#%lu*4\n", sizeof(tas_ops) / sizeof(tas_ops[0]));
@@ -382,8 +373,6 @@ static void PrintFramework()
 
   // --------------
   // offset table to avoid .text relocations (forbidden by Android and iOS)
-  ot("CycloneOT_JT%s\n", ms?"":":");
-  ot("  %s %s-CycloneOT_JT\n", ms?"dcd":".long", "CycloneJumpTab");
 #if (CYCLONE_FOR_GENESIS == 2)
   ot("CycloneOT_TAS_%s\n", ms?"":":"); // working TAS (no MD bug)
   for (size_t i = 0; i < sizeof(tas_ops) / sizeof(tas_ops[0]); i++)
@@ -1290,8 +1279,8 @@ static int CycloneMake()
   for(i=0xf000; i<0x10000; i++) CyJump[i] = -3; // f-line emulation
 
   ot(ms?"  area |.text|, code\n":"  .text\n  .align 4\n\n");
-  ot("  %s CycloneInit\n",globl);
-  ot("  %s CycloneReset\n",globl);
+  ot("  %s CycloneInitJT\n",globl);
+  ot("  %s CycloneResetJT\n",globl);
   ot("  %s CycloneRun\n",globl);
   ot("  %s CycloneSetSr\n",globl);
   ot("  %s CycloneGetSr\n",globl);
@@ -1300,7 +1289,7 @@ static int CycloneMake()
   ot("  %s CycloneUnpack\n",globl);
   ot("  %s CycloneVer\n",globl);
 #if (CYCLONE_FOR_GENESIS == 2)
-  ot("  %s CycloneSetRealTAS\n",globl);
+  ot("  %s CycloneSetRealTAS_JT\n",globl);
   ot("  %s CycloneDoInterrupt\n",globl);
   ot("  %s CycloneDoTrace\n",globl);
   ot("  %s CycloneJumpTab\n",globl);

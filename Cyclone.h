@@ -19,6 +19,8 @@ extern "C" {
 
 extern int CycloneVer; // Version number of library
 
+extern long CycloneJumpTab[65536]; // default jump table
+
 struct Cyclone
 {
   unsigned int d[8];    // [r7,#0x00]
@@ -55,10 +57,14 @@ struct Cyclone
 };
 
 // Initialize. Used only if Cyclone was compiled with compressed jumptable, see config.h
-void CycloneInit(void);
+#define CycloneInit() \
+	CycloneInitJT(CycloneJumpTab)
+void CycloneInitJT(void *jt);
 
 // Reset
-void CycloneReset(struct Cyclone *pcy);
+#define CycloneReset(pcy) \
+	CycloneResetJT(pcy, CycloneJumpTab)
+void CycloneResetJT(struct Cyclone *pcy, void *jt);
 
 // Run cyclone. Cycles should be specified in context (pcy->cycles)
 void CycloneRun(struct Cyclone *pcy);
@@ -78,7 +84,9 @@ void CyclonePack(const struct Cyclone *pcy, void *save_buffer);
 void CycloneUnpack(struct Cyclone *pcy, const void *save_buffer);
 
 // genesis: if 1, switch to normal TAS handlers
-void CycloneSetRealTAS(int use_real);
+#define CycloneSetRealTAS(use_real) \
+	CycloneSetRealTAS_JT(use_real, CycloneJumpTab)
+void CycloneSetRealTAS_JT(int use_real, void *jt);
 
 
 // These values are special return values for IrqCallback.
