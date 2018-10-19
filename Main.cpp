@@ -1288,11 +1288,11 @@ static int CycloneMake()
   ot("  %s CyclonePack\n",globl);
   ot("  %s CycloneUnpack\n",globl);
   ot("  %s CycloneVer\n",globl);
+  ot("  %s CycloneJumpTab\n",globl);
 #if (CYCLONE_FOR_GENESIS == 2)
   ot("  %s CycloneSetRealTAS_JT\n",globl);
   ot("  %s CycloneDoInterrupt\n",globl);
   ot("  %s CycloneDoTrace\n",globl);
-  ot("  %s CycloneJumpTab\n",globl);
   ot("  %s Op____\n",globl);
   ot("  %s Op6002\n",globl);
   ot("  %s Op6602\n",globl);
