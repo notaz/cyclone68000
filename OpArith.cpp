@@ -425,7 +425,7 @@ int OpAbcd(int op)
     ot("  add r1,r1,r0\n");
     ot("  add r1,r1,r6\n");
     ot("  mov r12,r1\n");
-    ot("  addhi r12,#6 ;@ Decimal adjust units\n");
+    ot("  addhi r12,r12,#6 ;@ Decimal adjust units\n");
     ot("  tst r1,#0x80\n");
     ot("  orreq r10,r10,#0x10000000 ;@ Undefined V behavior\n");
     ot("  cmp r12,#0x9f\n");
@@ -452,7 +452,7 @@ int OpAbcd(int op)
     ot("  cmp r1,r12\n");
     ot("  orrlt r10,r10,#0x20000000 ;@ C\n");
     ot("  cmp r1,#0xff\n");
-    ot("  addhi r1,#0xa0\n");
+    ot("  addhi r1,r1,#0xa0\n");
     ot("  sub r12,r1,r12\n");
     ot("  movs r0,r12,lsl #24\n");
     ot("  bicmi r10,r10,#0x10000000 ;@ Undefined V behavior part II\n");

@@ -74,12 +74,12 @@ const char *TestCond(int m68k_cc, int invert)
       break;
     case 0x0e: // gt
       ot("  eor r0,r10,r10,lsl #3 ;@ gt: !Z && N == V\n");
-      ot("  orrs r0,r10,lsl #1\n");
+      ot("  orrs r0,r0,r10,lsl #1\n");
       cond="pl", icond="mi";
       break;
     case 0x0f: // le
       ot("  eor r0,r10,r10,lsl #3 ;@ le: Z || N != V\n");
-      ot("  orrs r0,r10,lsl #1\n");
+      ot("  orrs r0,r0,r10,lsl #1\n");
       cond="mi", icond="pl";
       break;
     default:
