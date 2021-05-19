@@ -124,6 +124,7 @@ int OpBtstReg(int op)
   } else {
     Cycles=type?8:4;
     if(size>=2) Cycles+=2;
+    if(type==0 && tea==0x3c) Cycles += 2;
   }
 
   EaCalcRead(-1,11,sea,0,0x0e00,earwt_msb_dont_care);
