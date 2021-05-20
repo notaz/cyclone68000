@@ -107,7 +107,6 @@ int OpAddq(int op)
 
   OpStart(op,ea);
   Cycles=ea<8?4:8;
-  if(type==0&&size==1) Cycles=ea<0x10?4:8;
   if(size>=2) Cycles=ea<0x10?8:12;
 
   if (size>0 && (ea&0x38)==0x08) size=2; // addq.w #n,An is also 32-bit
