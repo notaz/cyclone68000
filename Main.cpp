@@ -1041,6 +1041,7 @@ static void PrintOpcodes()
   ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
   ot("  ldr r11,[r7,#0x94] ;@ UnrecognizedCallback\n");
   ot("  tst r11,r11\n");
+  ot("  moveq r0,#0\n");
   ot("  movne lr,pc\n");
   ot("  movne pc,r11 ;@ call UnrecognizedCallback if it is defined\n");
   ot("  ldrb r10,[r7,#0x46] ;@ r10 = Load Flags (NZCV)\n");
@@ -1048,14 +1049,16 @@ static void PrintOpcodes()
   ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
   ot("  mov r10,r10,lsl #28\n");
   ot("  tst r0,r0\n");
+  ot("  subeq r5,r5,#34\n");
   ot("  moveq r0,#4\n");
   ot("  bleq Exception\n");
+  Cycles=0;
 #else
   ot("  mov r0,#4\n");
   ot("  bl Exception\n");
+  Cycles=34;
 #endif
   ot("\n");
-  Cycles=34;
   OpEnd();
 
   // Unrecognised a-line and f-line opcodes throw an exception:
@@ -1068,6 +1071,7 @@ static void PrintOpcodes()
   ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
   ot("  ldr r11,[r7,#0x94] ;@ UnrecognizedCallback\n");
   ot("  tst r11,r11\n");
+  ot("  moveq r0,#0\n");
   ot("  movne lr,pc\n");
   ot("  movne pc,r11 ;@ call UnrecognizedCallback if it is defined\n");
   ot("  ldrb r10,[r7,#0x46] ;@ r10 = Load Flags (NZCV)\n");
@@ -1075,14 +1079,16 @@ static void PrintOpcodes()
   ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
   ot("  mov r10,r10,lsl #28\n");
   ot("  tst r0,r0\n");
+  ot("  subeq r5,r5,#34\n");
   ot("  moveq r0,#0x0a\n");
   ot("  bleq Exception\n");
+  Cycles=0;
 #else
   ot("  mov r0,#0x0a\n");
   ot("  bl Exception\n");
+  Cycles=34;
 #endif
   ot("\n");
-  Cycles=4;
   OpEnd();
 
   ot("Op__fl%s ;@ Unrecognised f-line opcode\n", ms?"":":");
@@ -1094,6 +1100,7 @@ static void PrintOpcodes()
   ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
   ot("  ldr r11,[r7,#0x94] ;@ UnrecognizedCallback\n");
   ot("  tst r11,r11\n");
+  ot("  moveq r0,#0\n");
   ot("  movne lr,pc\n");
   ot("  movne pc,r11 ;@ call UnrecognizedCallback if it is defined\n");
   ot("  ldrb r10,[r7,#0x46] ;@ r10 = Load Flags (NZCV)\n");
@@ -1101,14 +1108,16 @@ static void PrintOpcodes()
   ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
   ot("  mov r10,r10,lsl #28\n");
   ot("  tst r0,r0\n");
+  ot("  subeq r5,r5,#34\n");
   ot("  moveq r0,#0x0b\n");
   ot("  bleq Exception\n");
+  Cycles=0;
 #else
   ot("  mov r0,#0x0b\n");
   ot("  bl Exception\n");
+  Cycles=34;
 #endif
   ot("\n");
-  Cycles=4;
   OpEnd();
 
 

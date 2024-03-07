@@ -73,7 +73,6 @@ int OpArith(int op)
   {
     if (size>=2) Cycles+=4;
     if (tea>=8)  Cycles+=4;
-    if (type==1 && size>=2 && tea<8) Cycles-=2;
   }
 
   OpEnd(sea,tea);
@@ -235,9 +234,9 @@ int OpMul(int op)
   use&=~0x0e00; // Use same for all registers
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,ea);
-  if(type) Cycles=54;
-  else     Cycles=sign?158:140;
+  OpStart(op,ea,0,1);
+  if(type) Cycles=38;
+  else     Cycles=sign?16:10;
 
   EaCalcRead(-1,0,ea,1,0x003f,earwt_msb_dont_care);
 
@@ -258,6 +257,7 @@ int OpMul(int op)
       ot("  mov r12,#0 ;@ r12 = 1 or 2 if the result is negative\n");
       ot("  tst r2,r2\n");
       ot("  orrmi r12,r12,#2\n");
+      ot("  submi r5,r5,#2\n");
       ot("  rsbmi r2,r2,#0 ;@ Make r2 positive\n");
       ot("\n");
       ot("  movs r0,r1,asr #16\n");
@@ -265,16 +265,22 @@ int OpMul(int op)
       ot("  rsbmi r0,r0,#0 ;@ Make r0 positive\n");
       ot("\n");
       ot(";@ detect the nasty 0x80000000 / -1 situation\n");
-      ot("  mov r3,r2,asr #31\n");
-      ot("  eors r3,r3,r1,asr #16\n");
+      ot("  subs r3,r2,#0x80000000\n");
+      ot("  addeqs r3,r1,#0x00010000\n");
       ot("  beq wrendofop%.4x\n",op);
     }
     else
     {
       ot("  mov r0,r1,lsr #16 ;@ use only 16 bits of divisor\n");
     }
-
     ot("\n");
+
+    ot(";@ Overflow?\n");
+    ot("  cmp r0,r2,lsr #16\n");
+    ot("  orrls r10,r10,#0x10000000 ;@ set overflow flag\n");
+    ot("  bls endofop%.4x ;@ overflow!\n",op);
+    ot("\n");
+
     ot(";@ Divide r2 by r0\n");
     ot("  mov r3,#0\n");
     ot("  mov r1,r0\n");
@@ -286,10 +292,12 @@ int OpMul(int op)
     ot("  bcc Shift%.4x\n",op);
     ot("\n");
 
+    ot("  sub r5,r5,#8*16 ;@ Maximum cycles divide loop can take\n");
     ot("Divide%.4x%s\n",op,ms?"":":");
     ot("  cmp r2,r1\n");
     ot("  adc r3,r3,r3 ;@ Double r3 and add 1 if carry set\n");
     ot("  subcs r2,r2,r1\n");
+    ot("  addcs r5,r5,#2\n");
     ot("  teq r1,r0\n");
     ot("  movne r1,r1,lsr #1\n");
     ot("  bne Divide%.4x\n",op);
@@ -299,11 +307,14 @@ int OpMul(int op)
     if (sign)
     {
       // sign correction
+      ot("  sub r5,r5,#8\n");
       ot("  and r1,r12,#1\n");
       ot("  teq r1,r12,lsr #1\n");
       ot("  rsbne r3,r3,#0 ;@ negate if quotient is negative\n");
+      ot("  subne r5,r5,#2\n");
       ot("  tst r12,#2\n");
       ot("  rsbne r2,r2,#0 ;@ negate the remainder if divident was negative\n");
+      ot("  subne r5,r5,#2\n");
       ot("\n");
 
       // signed overflow check
@@ -313,14 +324,6 @@ int OpMul(int op)
       ot("  bne endofop%.4x ;@ overflow!\n",op);
       ot("\n");
       ot("wrendofop%.4x%s\n",op,ms?"":":");
-    }
-    else
-    {
-      // overflow check
-      ot("  movs r1,r3,lsr #16 ;@ check for overflow condition\n");
-      ot("  orrne r10,r10,#0x10000000 ;@ set overflow flag\n");
-      ot("  bne endofop%.4x ;@ overflow!\n",op);
-      ot("\n");
     }
 
     ot("  movs r1,r3,lsl #16 ;@ Clip to 16-bits\n");
@@ -332,6 +335,17 @@ int OpMul(int op)
 
   if (type==1)
   {
+    ot(";@ Calculate cycles needed:\n");
+    if (sign) ot("  eors r0,r1,r1,asr #1\n");
+    else      ot("  movs r0,r1\n");
+    ot("  moveq r3,#0 ;@ Compute number of bits set in multiplier\n");
+    ot("  movne r3,#1\n");
+    ot("0:sub r12,r0,#1\n");
+    ot("  ands r0,r0,r12\n");
+    ot("  addne r3,r3,#1\n");
+    ot("  bne 0b\n");
+    ot("  sub r5,r5,r3,lsl #1 ;@ 2 cycles per bit set\n");
+
     ot(";@ Get 16-bit signs right:\n");
     ot("  mov r0,r1,%s #16\n",sign?"asr":"lsr");
     ot("  mov r2,r2,lsl #16\n");
@@ -346,6 +360,7 @@ int OpMul(int op)
   EaWrite(11, 1,rea, 2,0x0e00,earwt_shifted_up);
 
   if (type==0) ot("endofop%.4x%s\n",op,ms?"":":");
+  opend_op_changes_cycles=1;
   OpEnd(ea);
 
   if (type==0) // div
@@ -353,7 +368,7 @@ int OpMul(int op)
     ot("divzero%.4x%s\n",op,ms?"":":");
     ot("  mov r0,#5 ;@ Divide by zero\n");
     ot("  bl Exception\n");
-    Cycles+=38;
+    Cycles+=34-6;
     OpEnd(ea);
     ot("\n");
   }
@@ -808,7 +823,7 @@ int OpChk(int op)
   ot("chktrap%.4x%s ;@ CHK exception:\n",op,ms?"":":");
   ot("  mov r0,#6\n");
   ot("  bl Exception\n");
-  Cycles+=40;
+  Cycles+=34-6;
   OpEnd(ea);
 
   return 0;

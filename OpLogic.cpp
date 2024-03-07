@@ -117,14 +117,16 @@ int OpBtstReg(int op)
   use&=~0x0e00; // Use same handler for all registers
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,tea);
+  OpStart(op,tea,0,tea<0x10);
 
   if(type==1||type==3) {
     Cycles=8;
+    if(size>=2) Cycles-=2;
   } else {
-    Cycles=type?8:4;
+    Cycles=type?6:4;
     if(size>=2) Cycles+=2;
-    if(type==0 && tea==0x3c) Cycles += 2;
+    if(type==0 && tea==0x3c) Cycles+=2;
+    if(type==2 && tea>=0x10) Cycles+=2;
   }
 
   EaCalcRead(-1,11,sea,0,0x0e00,earwt_msb_dont_care);
@@ -133,7 +135,13 @@ int OpBtstReg(int op)
 
   if (tea>=0x10)
        ot("  and r11,r11,#7  ;@ mem - do mod 8\n");  // size always 0
-  else ot("  and r11,r11,#31 ;@ reg - do mod 32\n"); // size always 2
+  else {
+       ot("  and r11,r11,#31 ;@ reg - do mod 32\n"); // size always 2
+       if (type) {
+         ot("  tst r11,#0x10   ;@ extra cycles\n");
+         ot("  subne r5,r5,#2\n");
+       }
+  }
   ot("\n");
 
   ot("  mov r1,#1\n");
@@ -150,6 +158,7 @@ int OpBtstReg(int op)
     ot("\n");
     EaWrite(8,1,tea,size,0x003f,earwt_msb_dont_care);
   }
+  opend_op_changes_cycles=tea<0x10;
   OpEnd(tea);
 
   return 0;
@@ -179,7 +188,7 @@ int OpBtstImm(int op)
   use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,sea,tea);
+  OpStart(op,sea,tea,tea<0x10);
 
   ot("\n");
   EaCalcRead(-1,0,sea,0,0,earwt_msb_dont_care);
@@ -187,16 +196,23 @@ int OpBtstImm(int op)
   ot("  bic r10,r10,#0x40000000 ;@ Blank Z flag\n");
   if (tea>=0x10)
        ot("  and r0,r0,#7    ;@ mem - do mod 8\n");  // size always 0
-  else ot("  and r0,r0,#0x1F ;@ reg - do mod 32\n"); // size always 2
+  else {
+       ot("  and r0,r0,#0x1F ;@ reg - do mod 32\n"); // size always 2
+       if (type) {
+         ot("  tst r0,#0x10    ;@ extra cycles\n");
+         ot("  subne r5,r5,#2\n");
+       }
+  }
   ot("  mov r11,r11,lsl r0 ;@ Make bit mask\n");
   ot("\n");
 
   if(type==1||type==3) {
-    Cycles=12;
+    Cycles=10;
   } else {
-    Cycles=type?12:8;
+    Cycles=type?10:8;
     if(size>=2) Cycles+=2;
   }
+  if(type && tea>=0x10) Cycles+=2;
 
   EaCalcRead((type>0)?8:-1,0,tea,size,0x003f,earwt_msb_dont_care);
   ot("  tst r0,r11 ;@ Do arithmetic\n");
@@ -217,6 +233,7 @@ int OpBtstImm(int op)
 #endif
   }
 
+  opend_op_changes_cycles=tea<0x10;
   OpEnd(sea,tea);
 
   return 0;
@@ -740,7 +757,7 @@ int OpTas(int op, int gen_special)
     ot("Op%.4x_%s\n", op, ms?"":":");
 
   Cycles=4;
-  if(ea>=8) Cycles+=10;
+  if(ea>=8) Cycles+=6;
 
   EaCalc (11,0x003f,ea,0,earwt_shifted_up);
   EaRead (11,     1,ea,0,0x003f,earwt_shifted_up,1);

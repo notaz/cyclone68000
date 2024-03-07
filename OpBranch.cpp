@@ -94,7 +94,7 @@ int OpTrap(int op)
   ot("  bl Exception\n");
   ot("\n");
 
-  Cycles=38; OpEnd(0x10);
+  Cycles=34; OpEnd(0x10);
 
   return 0;
 }
@@ -221,7 +221,7 @@ int Op4E70(int op)
     case 6: // trapv
     OpStart(op,0x10,0,1); Cycles=4;
     ot("  tst r10,#0x10000000\n");
-    ot("  subne r5,r5,#%i\n",34);
+    ot("  subne r5,r5,#%i\n",34-Cycles);
     ot("  movne r0,#7 ;@ TRAPV exception\n");
     ot("  blne Exception\n");
     opend_op_changes_cycles = 1;
