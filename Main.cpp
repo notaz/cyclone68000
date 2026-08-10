@@ -968,6 +968,8 @@ int MemHandler(int type,int size,int addrreg,int need_addrerr_check)
   addrreg=0;
 #endif
 
+  sprintf(what, "%s%d", type==0 ? "read" : (type==1 ? "write" : "fetch"), 8<<size);
+
 #if EMULATE_ADDRESS_ERRORS_IO
   if (size > 0 && need_addrerr_check)
   {
@@ -983,7 +985,6 @@ int MemHandler(int type,int size,int addrreg,int need_addrerr_check)
   else
 #endif
 
-  sprintf(what, "%s%d", type==0 ? "read" : (type==1 ? "write" : "fetch"), 8<<size);
 #ifdef MEMHANDLERS_DIRECT_PREFIX
   if (addrreg != 0)
     ot("  mov r0,r%i\n", addrreg);
