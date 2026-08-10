@@ -115,12 +115,14 @@ int OpLink(int op)
     ot(";@ Get An\n");
     EaCalc(11, 7, 8, 2);
     EaRead(11, 1, 8, 2, 7);
+    ot("  ldr r0,[r7,#0x3c] ;@ Get A7\n");
+    ot("  sub r0,r0,#4 ;@ A7-=4\n");
   }
-
-  ot("  ldr r0,[r7,#0x3c] ;@ Get A7\n");
-  ot("  sub r0,r0,#4 ;@ A7-=4\n");
+  else {
+    ot("  ldr r1,[r7,#0x3c] ;@ Get A7\n");
+    ot("  sub r0,r1,#4 ;@ A7-=4\n");
+  }
   ot("  mov r8,r0 ;@ abuse r8\n");
-  if(reg==7) ot("  mov r1,r0\n");
   ot("\n");
   
   ot(";@ Write An to Stack\n");

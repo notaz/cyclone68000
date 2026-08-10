@@ -254,83 +254,100 @@ int OpMul(int op)
     
     if (sign)
     {
-      ot("  mov r12,#0 ;@ r12 = 1 or 2 if the result is negative\n");
-      ot("  tst r2,r2\n");
-      ot("  orrmi r12,r12,#2\n");
+      ot("  ands r12,r2,#0x80000000 ;@ r12 = odd parity if the result is negative\n");
       ot("  submi r5,r5,#2\n");
       ot("  rsbmi r2,r2,#0 ;@ Make r2 positive\n");
       ot("\n");
       ot("  movs r0,r1,asr #16\n");
-      ot("  orrmi r12,r12,#1\n");
+      ot("  orrmi r12,r12,#0x40000000\n");
       ot("  rsbmi r0,r0,#0 ;@ Make r0 positive\n");
       ot("\n");
       ot(";@ detect the nasty 0x80000000 / -1 situation\n");
       ot("  subs r3,r2,#0x80000000\n");
       ot("  addeqs r3,r1,#0x00010000\n");
       ot("  beq wrendofop%.4x\n",op);
-    }
-    else
-    {
-      ot("  mov r0,r1,lsr #16 ;@ use only 16 bits of divisor\n");
-    }
-    ot("\n");
+      ot("\n");
 
-    ot(";@ Overflow?\n");
-    ot("  cmp r0,r2,lsr #16\n");
-    ot("  orrls r10,r10,#0x10000000 ;@ set overflow flag\n");
-    ot("  bls endofop%.4x ;@ overflow!\n",op);
-    ot("\n");
+      ot(";@ Overflow?\n");
+      ot("  cmp r0,r2,lsr #16\n");
+      ot("  movls r10,#0x90000000 ;@ set overflow/negative flags\n");
+      ot("  bls endofop%.4x ;@ overflow!\n",op);
+      ot("\n");
 
-    ot(";@ Divide r2 by r0\n");
-    ot("  mov r3,#0\n");
-    ot("  mov r1,r0\n");
-    ot("\n");
-    ot(";@ Shift up divisor till it's just less than numerator\n");
-    ot("Shift%.4x%s\n",op,ms?"":":");
-    ot("  cmp r1,r2,lsr #1\n");
-    ot("  movls r1,r1,lsl #1\n");
-    ot("  bcc Shift%.4x\n",op);
-    ot("\n");
+      ot(";@ Divide r2 by r0\n");
+      ot("  mov r3,#0\n");
+      ot("  mov r1,r0\n");
+      ot("\n");
+      ot(";@ Shift up divisor till it's just less than numerator\n");
+      ot("Shift%.4x%s\n",op,ms?"":":");
+      ot("  cmp r1,r2,lsr #1\n");
+      ot("  movls r1,r1,lsl #1\n");
+      ot("  bcc Shift%.4x\n",op);
+      ot("\n");
 
-    ot("  sub r5,r5,#8*16 ;@ Maximum cycles divide loop can take\n");
-    ot("Divide%.4x%s\n",op,ms?"":":");
-    ot("  cmp r2,r1\n");
-    ot("  adc r3,r3,r3 ;@ Double r3 and add 1 if carry set\n");
-    ot("  subcs r2,r2,r1\n");
-    ot("  addcs r5,r5,#2\n");
-    ot("  teq r1,r0\n");
-    ot("  movne r1,r1,lsr #1\n");
-    ot("  bne Divide%.4x\n",op);
-    ot("\n");
-    ot(";@r3==quotient,r2==remainder\n");
+      ot("  sub r5,r5,#8*17 ;@ Maximum cycles divide loop can take\n");
+      ot("Divide%.4x%s\n",op,ms?"":":");
+      ot("  addcs r5,r5,#2 ;@ Count cycles for previous quotient bit\n");
+      ot("  cmp r2,r1\n");
+      ot("  adc r3,r3,r3 ;@ Double r3 and add 1 if carry set\n");
+      ot("  subcs r2,r2,r1\n");
+      ot("  teq r1,r0\n");
+      ot("  movne r1,r1,lsr #1\n");
+      ot("  bne Divide%.4x\n",op);
+      ot("\n");
+      ot(";@r3==quotient,r2==remainder\n");
 
-    if (sign)
-    {
       // sign correction
-      ot("  sub r5,r5,#8\n");
-      ot("  and r1,r12,#1\n");
-      ot("  teq r1,r12,lsr #1\n");
-      ot("  rsbne r3,r3,#0 ;@ negate if quotient is negative\n");
-      ot("  subne r5,r5,#2\n");
-      ot("  tst r12,#2\n");
-      ot("  rsbne r2,r2,#0 ;@ negate the remainder if divident was negative\n");
-      ot("  subne r5,r5,#2\n");
+      ot("  cmn r12,r12\n");
+      ot("  rsbvs r3,r3,#0 ;@ negate if quotient is negative\n");
+      ot("  subvs r5,r5,#2\n");
+      ot("  rsbcs r2,r2,#0 ;@ negate the remainder if dividend was negative\n");
+      ot("  subcs r5,r5,#2\n");
       ot("\n");
 
       // signed overflow check
       ot("  mov r1,r3,asl #16\n");
       ot("  cmp r3,r1,asr #16 ;@ signed overflow?\n");
-      ot("  orrne r10,r10,#0x10000000 ;@ set overflow flag\n");
+      ot("  movne r10,#0x90000000 ;@ set overflow/negative flags\n");
       ot("  bne endofop%.4x ;@ overflow!\n",op);
       ot("\n");
       ot("wrendofop%.4x%s\n",op,ms?"":":");
+
+      ot("  movs r1,r3,lsl #16 ;@ Clip to 16-bits\n");
+      OpGetFlagsNZ(1);
+
+      ot("  mov r1,r1,lsr #16\n");
+      ot("  orr r2,r1,r2,lsl #16 ;@ Insert remainder\n");
     }
+    else
+    {
+      ot(";@ Overflow?\n");
+      ot("  cmp r2,r1\n");
+      ot("  movhs r10,#0x90000000 ;@ set overflow/negative flags\n");
+      ot("  bhs endofop%.4x ;@ overflow!\n",op);
+      ot("\n");
 
-    ot("  movs r1,r3,lsl #16 ;@ Clip to 16-bits\n");
-    OpGetFlagsNZ(1);
+      ot(";@ Divide r2 by (r1>>16)\n");
+      ot("  mov r0,#1-(8*16/2) ;@ Maximum cycles divide loop can take\n");
+      ot("  mov r3,#15\n");
+      ot("Divide%.4x%s\n",op,ms?"":":");
+      ot("  cmp r2,r1,lsr #1\n");
+      ot("  adc r0,r0,r2,lsr #31 ;@ Save 2 cycles when subtracting, or 4 if MSB is set\n");
+      ot("  adc r2,r2,r2 ;@ Double r2 and add 1 if carry set\n");
+      ot("  subcs r2,r2,r1\n");
+      ot("  subs r3,r3,#1\n");
+      ot("  bne Divide%.4x\n",op);
+      ot("  cmp r2,r1,lsr #1\n");
+      ot("  adc r2,r2,r2 ;@ Double r2 and add 1 if carry set\n");
+      ot("  subcs r2,r2,r1\n");
+      ot("  add r5,r5,r0,lsl #1\n");
+      ot("\n");
+      ot(";@r2==remainder/quotient\n");
 
-    ot("  mov r1,r1,lsr #16\n");
-    ot("  orr r1,r1,r2,lsl #16 ;@ Insert remainder\n");
+      ot("  movs r1,r2,lsl #16 ;@ Set flags based on quotient\n");
+      OpGetFlagsNZ(1);
+    }
+    ot("\n");
   }
 
   if (type==1)
@@ -363,12 +380,12 @@ int OpMul(int op)
     ot("  mov r2,r2,%s #16\n",sign?"asr":"lsr");
     ot("\n");
 
-    ot("  muls r1,r2,r0\n");
-    OpGetFlagsNZ(1);
+    ot("  muls r2,r0,r2\n");
+    OpGetFlagsNZ(2);
   }
   ot("\n");
 
-  EaWrite(11, 1,rea, 2,0x0e00,earwt_shifted_up);
+  EaWrite(11, 2,rea, 2,0x0e00,earwt_shifted_up);
 
   if (type==0) ot("endofop%.4x%s\n",op,ms?"":":");
   opend_op_changes_cycles=1;
@@ -811,30 +828,32 @@ int OpChk(int op)
   ot(";@ Get register operand into r1:\n");
   EaCalcRead(-1,1,rea,size,0x0e00,earwt_msb_dont_care);
 
-  if (size<2) ot("  mov r0,r0,asl #%d\n",size?16:24);
-
   if (size<2) ot("  movs r1,r1,asl #%d\n\n",size?16:24);
   else        ot("  adds r1,r1,#0 ;@ Define flags\n");
 
   ot(";@ get flags, including undocumented ones\n");
-  ot("  and r3,r10,#0x80000000\n");
   OpGetFlagsNZ(1);
 
   ot(";@ is reg negative?\n");
-  ot("  bmi chktrap%.4x\n",op);
+  ot("  bmi chktrapneg%.4x\n",op);
 
   ot(";@ Do arithmetic:\n");
-  ot("  cmp r1,r0\n");
+  if (size<2) ot("  cmp r1,r0,asl #%d\n",size?16:24);
+  else        ot("  cmp r1,r0\n");
   ot("  bgt chktrap%.4x\n",op);
 
-  ot(";@ old N remains\n");
-  ot("  orr r10,r10,r3\n");
   OpEnd(ea);
 
+  ot("chktrapneg%.4x%s ;@ CHK negative exception:\n",op,ms?"":":");
+  ot(";@ Delayed negative trap only if !(N||V), which is !N for a negative subtrahend\n");
+  if (size<2) ot("  rsbs r0,r1,r0,asl #%d\n",size?16:24);
+  else        ot("  cmp r0,r1\n");
+  ot("  subpl r5,r5,#2\n");
   ot("chktrap%.4x%s ;@ CHK exception:\n",op,ms?"":":");
   ot("  mov r0,#6\n");
   ot("  bl Exception\n");
   Cycles+=34-6;
+  opend_op_changes_cycles=1;
   OpEnd(ea);
 
   return 0;
