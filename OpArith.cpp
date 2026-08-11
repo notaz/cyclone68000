@@ -353,31 +353,25 @@ int OpMul(int op)
   if (type==1)
   {
     ot(";@ Calculate cycles needed: 2*(#bits set in multiplier engine mask)\n");
-    if (sign) {
-            ot("  eor r0,r1,r1,asr #1\n");
-            ot("  tst r0,#0x8000 ;@ handle 17th bit\n");
-            ot("  subne r5,r5,#2\n");
-    } else  ot("  mov r0,r1\n");
-    ot("  mov r3,#0x55000000 ;@ count top 16 bits, the O(1) way\n");
-    ot("  orr r3,r3,r3,lsr #8\n");
-    ot("  and r3,r3,r0,lsr #1\n");
-    ot("  sub r0,r0,r3\n");
-    ot("  mov r3,#0x33000000\n");
-    ot("  orr r3,r3,r3,lsr #8\n");
-    ot("  and r12,r3,r0,lsr #2\n");
-    ot("  and r0,r3,r0\n");
-    ot("  add r0,r0,r12\n");
-    ot("  mov r3,#0x0f000000\n");
-    ot("  orr r3,r3,r3,lsr #8\n");
+    if (sign) ot("  eor r0,r1,r1,lsl #1\n");
+    ot("  mov r12,#0x0F000000 ;@ count top 16 bits, the O(1) way\n");
+    ot("  orr r12,r12,r12,lsr #8 ;@ r12 = 0x0F0F0000\n");
+    ot("  eor r10,r12,r12,lsl #2 ;@ r10 = 0x33330000\n");
+    ot("  eor r3,r10,r10,lsl #1  ;@ r3  = 0x55550000\n");
+    ot("  and r3,r3,r%d,lsr #1\n",sign?0:1);
+    ot("  sub r0,r%d,r3\n",sign?0:1);
+    ot("  and r3,r10,r0,lsr #2\n");
+    ot("  and r0,r10,r0\n");
+    ot("  add r0,r0,r3\n");
     ot("  add r0,r0,r0,lsr #4\n");
-    ot("  and r0,r3,r0\n");
+    ot("  and r0,r12,r0\n");
     ot("  add r0,r0,r0,lsl #8\n");
     ot("  sub r5,r5,r0,lsr #23 ;@ cycles -= 2*bitcount(mask)\n");
 
     ot(";@ Get 16-bit signs right:\n");
     ot("  mov r0,r1,%s #16\n",sign?"asr":"lsr");
-    ot("  mov r2,r2,lsl #16\n");
-    ot("  mov r2,r2,%s #16\n",sign?"asr":"lsr");
+    if (sign) SignExtend(2,2,1);
+    else      ZeroExtend(2,2,1);
     ot("\n");
 
     ot("  muls r2,r0,r2\n");
