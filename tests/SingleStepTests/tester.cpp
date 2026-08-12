@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <random>
 #include <string>
 #include <utility>
 
@@ -420,6 +421,131 @@ static bool run_tests(FILE* test_file, TestStats& total_stats)
     return result;
 }
 
+class RandomSeedSeq
+{
+public:
+    using result_type = std::random_device::result_type;
+
+    template<typename Iter>
+    void generate(Iter begin, Iter end)
+    {
+        while (begin != end) *begin++ = device();
+    }
+
+private:
+    std::random_device device;
+};
+
+// Exercise more DIVU/DIVS code paths not covered by SST's uniform random distribution
+// This helps verify the division implementation's iteration-skipping logic is correct
+bool div_iter_tests()
+{
+    unsigned int sr;
+    bool success = true;
+    RandomSeedSeq seed;
+    std::mt19937 g{seed};
+    std::uniform_int_distribution<uint32_t> dividend_d;
+    std::uniform_int_distribution<uint16_t> divisor_d;
+    std::uniform_int_distribution<int> dividend_shift_d(-1, 31);
+    std::uniform_int_distribution<int> divisor_shift_d(-1, 15);
+
+    clean_memory();
+    cyclone_write16(0, 0x80c1); // divu.w d1, d0
+    cyclone_write16(2, 0x81c1); // divs.w d1, d0
+
+    for (int i = 0; i < 10000000; i++)
+    {
+        uint32_t dividend = dividend_d(g);
+        uint16_t divisor = divisor_d(g);
+        int dividend_shift = dividend_shift_d(g);
+        int divisor_shift = dividend_shift_d(g);
+
+        int32_t dividend_s = dividend_shift < 0 ? INT32_MIN : (int32_t)dividend >> dividend_shift;
+        int16_t divisor_s = divisor_shift < 0 ? INT16_MIN : (int16_t)divisor >> divisor_shift;
+        dividend = dividend_shift < 0 ? UINT32_MAX : dividend >> dividend_shift;
+        divisor = divisor_shift < 0 ? UINT16_MAX : divisor >> divisor_shift;
+
+        cpu.state_flags = 0;
+        cpu.cycles = 0;
+        cpu.membase = 0;
+        cpu.pc = cpu.checkpc(0);
+        CycloneSetSr(&cpu, 0);
+        cpu.d[0] = dividend;
+        cpu.d[1] = divisor;
+        cpu.a[7] = cpu.osp = 0;
+        CycloneRun(&cpu);
+        sr = CycloneGetSr(&cpu);
+
+        success = !(sr & 0x2000);
+        if (divisor != 0)
+        {
+            uint32_t quotient = dividend / divisor;
+            uint32_t remainder = dividend % divisor;
+            if (quotient != (uint16_t)quotient)
+            {
+                success &= !!(sr & 0x2);
+                success &= (cpu.d[0] == dividend);
+            }
+            else
+            {
+                success &= !(sr & 0x2);
+                success &= (cpu.d[0] == ((remainder << 16) | quotient));
+            }
+        }
+        else
+        {
+            success = !success;
+        }
+        if (!success)
+        {
+            printf("DIVU(%08x,%04x) failed:\n", dividend, divisor);
+            print_state(cpu, memory);
+            break;
+        }
+
+        cpu.state_flags = 0;
+        cpu.cycles = 0;
+        cpu.membase = 0;
+        cpu.pc = cpu.checkpc(2);
+        CycloneSetSr(&cpu, 0);
+        cpu.d[0] = dividend_s;
+        cpu.d[1] = divisor_s;
+        cpu.a[7] = cpu.osp = 0;
+        CycloneRun(&cpu);
+        sr = CycloneGetSr(&cpu);
+
+        success = !(sr & 0x2000);
+        if (divisor_s != 0)
+        {
+            // divide as 64-bit to avoid overflow UB
+            int64_t quotient = (int64_t)dividend_s / divisor_s;
+            int32_t remainder = (int64_t)dividend_s % divisor_s;
+            if (quotient != (int16_t)quotient)
+            {
+                success &= !!(sr & 0x2);
+                success &= (cpu.d[0] == (uint32_t)dividend_s);
+            }
+            else
+            {
+                success &= !(sr & 0x2);
+                success &= (cpu.d[0] == (((uint32_t)remainder << 16) | (uint16_t)quotient));
+            }
+        }
+        else
+        {
+            success = !success;
+        }
+        if (!success)
+        {
+            printf("DIVS(%08x,%04x) failed:\n", (unsigned)dividend_s, (unsigned)(divisor_s & 0xffff));
+            print_state(cpu, memory);
+            break;
+        }
+    }
+
+    return success;
+}
+
 int main()
 {
     cpu.checkpc = cyclone_checkpc;
@@ -461,6 +587,12 @@ int main()
 
     printf("%u passed, %u skipped, %u failed, %u warnings\n",
            stats.passes, stats.skips, stats.failures, stats.warnings);
+
+    puts("Running DIV* iter tests...");
+    if (div_iter_tests())
+    {
+        puts("DIV* iter tests passed");
+    }
 
     return EXIT_SUCCESS;
 }
