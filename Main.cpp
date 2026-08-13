@@ -1262,11 +1262,28 @@ static void PrintJumpTable()
 #endif
 }
 
+static void DeclareGlobalFunc(const char *name)
+{
+  if (ms) ot("  export %s [FUNC]\n",name);
+  else {
+    ot("  .global %s\n",name);
+    ot("  .type %s,%%function\n",name);
+  }
+}
+
+static void DeclareGlobalData(const char *name)
+{
+  if (ms) ot("  export %s [DATA]\n",name);
+  else {
+    ot("  .global %s\n",name);
+    ot("  .type %s,%%object\n",name);
+  }
+}
+
 static int CycloneMake()
 {
   int i;
   const char *name="Cyclone.s";
-  const char *globl=ms?"export":".global";
 
   // Open the assembly file
   if (ms) name="Cyclone.asm";
@@ -1289,24 +1306,24 @@ static int CycloneMake()
   for(i=0xf000; i<0x10000; i++) CyJump[i] = -3; // f-line emulation
 
   ot(ms?"  area |.text|, code\n":"  .text\n  .align 4\n\n");
-  ot("  %s CycloneInitJT\n",globl);
-  ot("  %s CycloneResetJT\n",globl);
-  ot("  %s CycloneRun\n",globl);
-  ot("  %s CycloneSetSr\n",globl);
-  ot("  %s CycloneGetSr\n",globl);
-  ot("  %s CycloneFlushIrq\n",globl);
-  ot("  %s CyclonePack\n",globl);
-  ot("  %s CycloneUnpack\n",globl);
-  ot("  %s CycloneVer\n",globl);
-  ot("  %s CycloneJumpTab\n",globl);
+  DeclareGlobalFunc("CycloneInitJT");
+  DeclareGlobalFunc("CycloneResetJT");
+  DeclareGlobalFunc("CycloneRun");
+  DeclareGlobalFunc("CycloneSetSr");
+  DeclareGlobalFunc("CycloneGetSr");
+  DeclareGlobalFunc("CycloneFlushIrq");
+  DeclareGlobalFunc("CyclonePack");
+  DeclareGlobalFunc("CycloneUnpack");
+  DeclareGlobalData("CycloneVer");
+  DeclareGlobalData("CycloneJumpTab");
 #if (CYCLONE_FOR_GENESIS == 2)
-  ot("  %s CycloneSetRealTAS_JT\n",globl);
-  ot("  %s CycloneDoInterrupt\n",globl);
-  ot("  %s CycloneDoTrace\n",globl);
-  ot("  %s Op____\n",globl);
-  ot("  %s Op6002\n",globl);
-  ot("  %s Op6602\n",globl);
-  ot("  %s Op6702\n",globl);
+  DeclareGlobalFunc("CycloneSetRealTAS_JT");
+  DeclareGlobalFunc("CycloneDoInterrupt");
+  DeclareGlobalFunc("CycloneDoTrace");
+  DeclareGlobalFunc("Op____");
+  DeclareGlobalFunc("Op6002");
+  DeclareGlobalFunc("Op6602");
+  DeclareGlobalFunc("Op6702");
 #endif
   ot("\n");
   ot(ms?"CycloneVer dcd 0x":"CycloneVer: .long 0x");
