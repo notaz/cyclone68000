@@ -1,0 +1,3 @@
+[submodule "tests/SingleStepTests/m68000"]
+	path = tests/SingleStepTests/m68000
+	url = https://github.com/SingleStepTests/m68000.git

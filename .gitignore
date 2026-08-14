@@ -4,3 +4,4 @@ Cyclone.s
 cscope.out
 tags
 tests/test_misc2.bin
+tests/SingleStepTests/tester
