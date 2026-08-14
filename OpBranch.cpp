@@ -12,19 +12,53 @@
 
 #include "app.h"
 
-// in/out address in r0, trashes all temp regs
-static void CheckPc(void)
+// calculates in-address as base+offset, with optional shift expression
+// base and offset regs must not be r3
+// if base is passed as -1, it is auto-loaded and offset must not be r2
+// by default, out-address is in r4 and bit 0 cleared if errors are not emulated
+// if writeback is disabled, the direct return value from checkpc() is in r0
+void CheckPc(int r_base,int r_ofs,int writeback,const char *s_ofs)
 {
+  if (r_base<0) {
+    ot("  ldr r2,[r7,#0x60] ;@ Get Memory base\n");
+    r_base=2;
+  }
+
 #if USE_CHECKPC_CALLBACK
+  ot(";@ Check Memory Base+pc\n");
  #ifdef MEMHANDLERS_DIRECT_PREFIX
+  ot("  add r0,r%d,r%d%s ;@ r0 = New PC\n",r_base,r_ofs,s_ofs);
   ot("  bl %scheckpc ;@ Call checkpc()\n", MEMHANDLERS_DIRECT_PREFIX);
  #else
-  ot(";@ Check Memory Base+pc\n");
-  ot("  mov lr,pc\n");
+  #if HAVE_ARMv4_ARM9
+  ot("  ldr r3,[r7,#0x64] ;@ checkpc handler\n");
+  #endif
+  #if !HAVE_ARMv5
+  ot("  add lr,pc,#4\n");
+  #endif
+  ot("  add r0,r%d,r%d%s ;@ r0 = New PC\n",r_base,r_ofs,s_ofs);
+  #if HAVE_ARMv5
+  ot("  blx r3 ;@ Call checkpc()\n");
+  #elif HAVE_ARMv4_ARM9
+  ot("  bx r3 ;@ Call checkpc()\n");
+  #else
   ot("  ldr pc,[r7,#0x64] ;@ Call checkpc()\n");
-  ot("\n");
+  #endif
+ #endif
+  if (writeback)
+ #if EMULATE_ADDRESS_ERRORS_JUMP
+    ot("  mov r4,r0\n");
+ #else
+    ot("  bic r4,r0,#1\n");
+ #endif
+#else
+  int r_out=writeback?4:0;
+  ot("  add r%d,r%d,r%d%s ;@ r%d = New PC\n",r_out,r_base,r_ofs,s_ofs,r_out);
+ #if !EMULATE_ADDRESS_ERRORS_JUMP
+  if (writeback) ot("  bic r4,r4,#1\n");
  #endif
 #endif
+  ot("\n");
 }
 
 // Push 32-bit value in r1 - trashes r0-r3,r12,lr
@@ -70,15 +104,7 @@ static void PopPc()
   ot("  add r1,r0,#4 ;@ Postincrement A7\n");
   ot("  str r1,[r7,#0x3c] ;@ Save A7\n");
   MemHandler(0,2);
-  ot("  ldr r1,[r7,#0x60] ;@ Get Memory base\n");
-  ot("  add r0,r0,r1 ;@ Memory Base+PC\n");
-  ot("\n");
-  CheckPc();
-#if EMULATE_ADDRESS_ERRORS_JUMP
-  ot("  mov r4,r0\n");
-#else
-  ot("  bic r4,r0,#1\n");
-#endif
+  CheckPc(-1,0);
 }
 
 int OpTrap(int op)
@@ -268,9 +294,7 @@ int OpJsr(int op)
   EaCalc(12,0x003f,sea,0);
 
   ot(";@ Jump - Get new PC from r12\n");
-  ot("  add r0,r12,r11 ;@ Memory Base + New PC\n");
-  ot("\n");
-  CheckPc();
+  CheckPc(11,12,0);
   if (!(op&0x40))
   {
     ot("  ldr r2,[r7,#0x3c]\n");
@@ -352,14 +376,10 @@ int OpDbra(int op)
 
     ot(";@ Get Branch offset:\n");
     ot("  ldrsh r0,[r4]\n");
-    ot("  add r0,r4,r0 ;@ r0 = New PC\n");
-    CheckPc();
+    CheckPc(4,0);
 #if EMULATE_ADDRESS_ERRORS_JUMP
-    ot("  mov r4,r0\n");
     ot("  tst r4,#1 ;@ address error?\n");
     ot("  bne ExceptionAddressError_r_prg_r4\n");
-#else
-    ot("  bic r4,r0,#1\n");
 #endif
 #else
     ot("\n");
@@ -481,8 +501,7 @@ int OpBranch(int op)
 #endif
   if (checkpc)
   {
-    ot("  add r0,r4,r11%s ;@ New PC\n",asr_r11);
-    CheckPc();
+    CheckPc(4,11,0,asr_r11);
     pc_reg=0;
   }
   else

@@ -2,6 +2,9 @@ CFLAGS += -Wall -ggdb
 ifdef CONFIG_FILE
 CFLAGS += -DCONFIG_FILE="\"$(CONFIG_FILE)\""
 endif
+ifdef HAVE_ARMv4_ARM9
+CFLAGS += -DHAVE_ARMv4_ARM9=$(HAVE_ARMv4_ARM9)
+endif
 ifdef HAVE_ARMv5
 CFLAGS += -DHAVE_ARMv5=$(HAVE_ARMv5)
 endif

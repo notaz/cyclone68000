@@ -19,6 +19,20 @@
 #ifndef HAVE_ARMv5
 #define HAVE_ARMv5                  0
 #endif
+/*
+ * This option enables indirect call optimizations on ARMv4 targets
+ * which have a 5-stage pipeline with load-use interlocks.
+ * As a side effect, it also allows calling Thumb-mode callbacks.
+ * Generally, this should be enabled on ARM9 or StrongARM targets,
+ * but may be left disabled to reduce code size.
+ * This option is always enabled on ARMv5 and up, which has
+ * no code size trade-off for this optimization.
+ * It also has very little effect if MEMHANDLERS_DIRECT_PREFIX is
+ * enabled, which disables most indirect calls.
+ */
+#ifndef HAVE_ARMv4_ARM9
+#define HAVE_ARMv4_ARM9             0
+#endif
 
 /*
  * If this option is enabled, Microsoft ARMASM compatible output is generated

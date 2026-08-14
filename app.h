@@ -37,6 +37,13 @@
 
 #ifndef HAVE_ARMv5
 #define HAVE_ARMv5 0
+#elif HAVE_ARMv5
+#undef HAVE_ARMv4_ARM9
+#define HAVE_ARMv4_ARM9 1
+#endif
+
+#ifndef HAVE_ARMv4_ARM9
+#define HAVE_ARMv4_ARM9 0
 #endif
 
 // Disa.c
@@ -83,6 +90,7 @@ void ot(const char *format, ...)
   ;
 void ltorg();
 int MemHandler(int type,int size,int addrreg=0,int need_addrerr_check=1);
+void CheckPc(int r_base,int r_ofs,int writeback=1,const char *s_ofs="");
 void FlushPC(int force=0);
 
 // OpAny.cpp
