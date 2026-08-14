@@ -174,7 +174,7 @@ void SignExtend(int rd, int rs, int size)
       ot("  mov r%d,r%d\n", rd, rs);
     return;
   }
-#if defined(HAVE_ARMv6) && (HAVE_ARMv6)
+#if HAVE_ARMv6
   if (size == 1)
     ot("  sxth r%d,r%d ;@ sign extend\n", rd, rs);
   else
@@ -194,7 +194,7 @@ void ZeroExtend(int rd, int rs, int size)
       ot("  mov r%d,r%d\n", rd, rs);
     return;
   }
-#if defined(HAVE_ARMv6) && (HAVE_ARMv6)
+#if HAVE_ARMv6
   if (size == 1)
     ot("  uxth r%d,r%d ;@ zero extend\n", rd, rs);
   else

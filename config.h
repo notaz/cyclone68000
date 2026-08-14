@@ -10,9 +10,14 @@
  * If you want Cyclone to make use of newer ARM instructions, enable the
  * options(s) below. You can also override this using make argument:
  *   make HAVE_ARMv6=1
+ * Note: The highest enabled architecture version implicitly enables
+ * all lower versions.
  */
 #ifndef HAVE_ARMv6
 #define HAVE_ARMv6                  0
+#endif
+#ifndef HAVE_ARMv5
+#define HAVE_ARMv5                  0
 #endif
 
 /*
@@ -37,6 +42,12 @@
  * CycloneRun(), or else it will crash.
  */
 #define COMPRESS_JUMPTABLE          1
+
+/*
+ * If enabled, inlines unrolled division in each DIVU/DIVS opcode handler.
+ * Saves 2 branches per divide, but costs ~1.3k instructions.
+ */
+#define INLINE_UNROLLED_DIV         0
 
 /*
  * Address mask for memory hadlers. The bits set will be masked out of address

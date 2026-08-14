@@ -2,8 +2,13 @@ ifeq ($(HAVE_ARMv6),1)
 ARCH = armv6
 CPU = arm11mpcore
 else
+ifeq ($(HAVE_ARMv5),1)
+ARCH = armv5t
+CPU = arm946
+else
 ARCH = armv4t
 CPU = arm946 # arm920 not supported in qemu...
+endif
 endif
 
 AS = arm-linux-gnueabi-as

@@ -216,6 +216,57 @@ int OpArithReg(int op)
 }
 
 // --------------------- Opcodes 0x80c0+ ---------------------
+static void UnrolledDiv()
+{
+  ot("  rsbs r0,r1,#0 ;@ negate divisor and clear carry\n");
+  ot("  sbc r10,r1,r1,lsr #1 ;@ r10=(divisor<<15)-1\n");
+  ot(";@ calculate number of skipped initial iterations\n");
+#if HAVE_ARMv5
+  // Use the difference in approximated log2 to determine skipped iterations,
+  // but round down by subtracting an extra 1.
+  // This rounded result may be less than 0, which is handled below.
+  ot("  orr r3,r2,r1,lsr #16 ;@ make sure the rounded difference is at most 15\n");
+  ot("  clz r3,r3 ;@ leading zeros of dividend, clamped to clz(divisor)+16\n");
+  ot("  clz r1,r1 ;@ leading zeros of divisor\n");
+  ot("  sbcs r3,r3,r1 ;@ subtract and round down (carry is still clear)\n");
+  ot("  mov r3,r3,lsl #1 ;@ each skipped iteration has 2 penalty cycle pairs\n");
+  ot(";@ add branch offset (12 bytes per iteration)\n");
+  ot("  add r1,r3,r3,lsl #1\n");
+  ot("  addhi pc,pc,r1,lsl #1 ;@ fallthrough if max iterations\n");
+  ot("  mov r3,#0 ;@ saturate negative cycles to 0\n");
+#else
+  ot("  mov r3,#0 ;@ number of additional cycle pairs\n");
+  // Resolve only to an even number of skipped iterations, because
+  // determining bit 0 would be just as expensive as the skipped iteration
+  for (int shift=8; shift!=1; shift>>=1)
+  {
+    ot("  cmp r2,r1,lsr #%d+1\n",shift);
+    ot("  addlo r3,r3,#%d*2 ;@ each skipped iteration has 2 penalty cycle pairs\n",shift);
+    if (shift!=2) ot("  movlo r1,r1,lsr #%d\n",shift);
+  }
+  ot("\n");
+  ot(";@ add branch offset (12 bytes per iteration)\n");
+  ot("  adds r1,r3,r3,lsl #1\n");
+  ot("  addne pc,pc,r1,lsl #1 ;@ fallthrough if max iterations\n");
+  ot("  nop ;@ padding for pc-relative offset\n");
+#endif
+  ot("\n");
+  ot(";@ For each iteration:\n");
+  ot(";@ Shift remainder into upper bits and compare the pre-shifted divisor to it.\n");
+  ot(";@ This resets carry if non-restoring, and sets overflow if remainder MSB was 1.\n");
+  ot(";@ Then, conditionally shift and add the negated divisor, setting an upper quotient bit.\n");
+  ot(";@ Finally, add 0, 1, or 2 penalty cycle pairs based on the overflow and carry flags.\n");
+  for (int shift=0; shift<16; shift++)
+  {
+    ot("  cmp r10,r2,lsl #%d\n",shift);
+    ot("  addcc r2,r2,r0,lsr #%d+1\n",shift);
+    // Final iteration has a fixed cycle length
+    if (shift!=15) ot("  adcvc r3,r3,#1\n");
+  }
+  ot("\n");
+  ot("  sub r5,r5,r3,lsl #1 ;@ Count penalty cycle pairs\n");
+}
+
 int OpMul(int op)
 {
   // Div/Mul: 1m00nnns 11eeeeee (m=Mul, nnn=Register Dn, s=signed, eeeeee=EA)
@@ -233,6 +284,24 @@ int OpMul(int op)
   use=OpBase(op,1);
   use&=~0x0e00; // Use same for all registers
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
+
+  // Output common unrolled divide loop function before first DIVU opcode
+  if (op == 0x80c0)
+  {
+#if !INLINE_UNROLLED_DIV
+    ot(";@ ---------- Common unrolled division subroutine ----------\n");
+    ot(";@ Fully unrolled unsigned division, with accurate cycle counting.\n");
+    ot(";@ Assumes divide-by-zero and unsigned overflow checks have passed.\n");
+    ot(";@ Inputs: r2=dividend, r1=divisor<<16\n");
+    ot(";@ Output: r2=(quotient<<16)|remainder\n");
+    ot(";@ Destroys: r0,r1,r3,r10\n");
+    ot(";@ r5 is adjusted with the per-iteration penalty cycles.\n");
+    ot("DivideCommon%s\n",ms?"":":");
+    UnrolledDiv();
+    ot("  bx lr\n");
+    ot("\n");
+#endif
+  }
 
   OpStart(op,ea,0,1);
   if(type) Cycles=38;
@@ -258,46 +327,31 @@ int OpMul(int op)
       ot("  submi r5,r5,#2\n");
       ot("  rsbmi r2,r2,#0 ;@ Make r2 positive\n");
       ot("\n");
-      ot("  movs r0,r1,asr #16\n");
+      ot("  tst r1,r1\n");
       ot("  orrmi r12,r12,#0x40000000\n");
-      ot("  rsbmi r0,r0,#0 ;@ Make r0 positive\n");
-      ot("\n");
-      ot(";@ detect the nasty 0x80000000 / -1 situation\n");
-      ot("  subs r3,r2,#0x80000000\n");
-      ot("  addeqs r3,r1,#0x00010000\n");
-      ot("  beq wrendofop%.4x\n",op);
-      ot("\n");
+      ot("  rsbmi r1,r1,#0 ;@ Make r1 positive\n");
+    }
+    ot("\n");
 
-      ot(";@ Overflow?\n");
-      ot("  cmp r0,r2,lsr #16\n");
-      ot("  movls r10,#0x90000000 ;@ set overflow/negative flags\n");
-      ot("  bls endofop%.4x ;@ overflow!\n",op);
-      ot("\n");
+    ot(";@ Overflow?\n");
+    ot("  cmp r2,r1\n");
+    ot("  movhs r10,#0x90000000 ;@ set overflow/negative flags\n");
+    ot("  bhs endofop%.4x ;@ overflow!\n",op);
+    ot("\n");
 
-      ot(";@ Divide r2 by r0\n");
-      ot("  mov r3,#0\n");
-      ot("  mov r1,r0\n");
-      ot("\n");
-      ot(";@ Shift up divisor till it's just less than numerator\n");
-      ot("Shift%.4x%s\n",op,ms?"":":");
-      ot("  cmp r1,r2,lsr #1\n");
-      ot("  movls r1,r1,lsl #1\n");
-      ot("  bcc Shift%.4x\n",op);
-      ot("\n");
+    ot("  sub r5,r5,#%d ;@ Minimum cycles divide loop can take\n",sign?74:66);
+#if INLINE_UNROLLED_DIV
+    UnrolledDiv();
+#else
+    ot("  bl DivideCommon ;@ Divide r2 by (r1>>16)\n");
+#endif
+    ot(";@r2==(quotient<<16)|remainder\n");
+    ot("\n");
 
-      ot("  sub r5,r5,#8*17 ;@ Maximum cycles divide loop can take\n");
-      ot("Divide%.4x%s\n",op,ms?"":":");
-      ot("  addcs r5,r5,#2 ;@ Count cycles for previous quotient bit\n");
-      ot("  cmp r2,r1\n");
-      ot("  adc r3,r3,r3 ;@ Double r3 and add 1 if carry set\n");
-      ot("  subcs r2,r2,r1\n");
-      ot("  teq r1,r0\n");
-      ot("  movne r1,r1,lsr #1\n");
-      ot("  bne Divide%.4x\n",op);
-      ot("\n");
-      ot(";@r3==quotient,r2==remainder\n");
-
+    if (sign)
+    {
       // sign correction
+      ot("  mov r3,r2,lsr #16\n");
       ot("  cmn r12,r12\n");
       ot("  rsbvs r3,r3,#0 ;@ negate if quotient is negative\n");
       ot("  subvs r5,r5,#2\n");
@@ -305,47 +359,22 @@ int OpMul(int op)
       ot("  subcs r5,r5,#2\n");
       ot("\n");
 
+      ot("  movs r1,r3,lsl #16 ;@ set flags based on quotient\n");
+      OpGetFlagsNZ(1);
       // signed overflow check
-      ot("  mov r1,r3,asl #16\n");
       ot("  cmp r3,r1,asr #16 ;@ signed overflow?\n");
       ot("  movne r10,#0x90000000 ;@ set overflow/negative flags\n");
       ot("  bne endofop%.4x ;@ overflow!\n",op);
       ot("\n");
-      ot("wrendofop%.4x%s\n",op,ms?"":":");
-
-      ot("  movs r1,r3,lsl #16 ;@ Clip to 16-bits\n");
-      OpGetFlagsNZ(1);
 
       ot("  mov r1,r1,lsr #16\n");
-      ot("  orr r2,r1,r2,lsl #16 ;@ Insert remainder\n");
+      ot("  orr r1,r1,r2,lsl #16 ;@ Insert remainder\n");
     }
     else
     {
-      ot(";@ Overflow?\n");
-      ot("  cmp r2,r1\n");
-      ot("  movhs r10,#0x90000000 ;@ set overflow/negative flags\n");
-      ot("  bhs endofop%.4x ;@ overflow!\n",op);
-      ot("\n");
-
-      ot(";@ Divide r2 by (r1>>16)\n");
-      ot("  mov r0,#1-(8*16/2) ;@ Maximum cycles divide loop can take\n");
-      ot("  mov r3,#15\n");
-      ot("Divide%.4x%s\n",op,ms?"":":");
-      ot("  cmp r2,r1,lsr #1\n");
-      ot("  adc r0,r0,r2,lsr #31 ;@ Save 2 cycles when subtracting, or 4 if MSB is set\n");
-      ot("  adc r2,r2,r2 ;@ Double r2 and add 1 if carry set\n");
-      ot("  subcs r2,r2,r1\n");
-      ot("  subs r3,r3,#1\n");
-      ot("  bne Divide%.4x\n",op);
-      ot("  cmp r2,r1,lsr #1\n");
-      ot("  adc r2,r2,r2 ;@ Double r2 and add 1 if carry set\n");
-      ot("  subcs r2,r2,r1\n");
-      ot("  add r5,r5,r0,lsl #1\n");
-      ot("\n");
-      ot(";@r2==remainder/quotient\n");
-
-      ot("  movs r1,r2,lsl #16 ;@ Set flags based on quotient\n");
-      OpGetFlagsNZ(1);
+      ot("  mov r1,r2,ror #16 ;@ swap quotient and remainder\n");
+      ot("  movs r2,r1,lsl #16 ;@ set flags based on quotient\n");
+      OpGetFlagsNZ(2);
     }
     ot("\n");
   }
@@ -374,12 +403,12 @@ int OpMul(int op)
     else      ZeroExtend(2,2,1);
     ot("\n");
 
-    ot("  muls r2,r0,r2\n");
-    OpGetFlagsNZ(2);
+    ot("  muls r1,r2,r0\n");
+    OpGetFlagsNZ(1);
   }
   ot("\n");
 
-  EaWrite(11, 2,rea, 2,0x0e00,earwt_shifted_up);
+  EaWrite(11, 1,rea, 2,0x0e00,earwt_shifted_up);
 
   if (type==0) ot("endofop%.4x%s\n",op,ms?"":":");
   opend_op_changes_cycles=1;

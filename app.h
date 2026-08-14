@@ -20,6 +20,18 @@
 #endif
 #include CONFIG_FILE
 
+// Enforce ARM architecture hierarchy even if a custom config file doesn't
+#ifndef HAVE_ARMv6
+#define HAVE_ARMv6 0
+#elif HAVE_ARMv6
+#undef HAVE_ARMv5
+#define HAVE_ARMv5 1
+#endif
+
+#ifndef HAVE_ARMv5
+#define HAVE_ARMv5 0
+#endif
+
 // Disa.c
 #include "Disa/Disa.h"
 
