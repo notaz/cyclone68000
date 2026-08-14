@@ -237,7 +237,7 @@ static void PrintFramework()
   ot("  add r0,r12,#0xe000*4 ;@ ctrl code pointer\n");
   ot("  ldr r1,[r0,#-4]\n");
   ot("  tst r1,r1\n");
-  ot("  movne pc,lr ;@ already uncompressed\n");
+  ot("  bxne lr ;@ already uncompressed\n");
   ot("  stmfd sp!,{r7,lr}\n");
   ot("  mov r7,r12 ;@ jump table\n");
   ot("  add r3,r12,#0xa000*4 ;@ handler table pointer, r12=dest\n");
@@ -1044,7 +1044,7 @@ static void PrintOpcodes()
   ot("  tst r11,r11\n");
   ot("  moveq r0,#0\n");
   ot("  movne lr,pc\n");
-  ot("  movne pc,r11 ;@ call UnrecognizedCallback if it is defined\n");
+  ot("  bxne r11 ;@ call UnrecognizedCallback if it is defined\n");
   ot("  ldrb r10,[r7,#0x46] ;@ r10 = Load Flags (NZCV)\n");
   ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
   ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
@@ -1074,7 +1074,7 @@ static void PrintOpcodes()
   ot("  tst r11,r11\n");
   ot("  moveq r0,#0\n");
   ot("  movne lr,pc\n");
-  ot("  movne pc,r11 ;@ call UnrecognizedCallback if it is defined\n");
+  ot("  bxne r11 ;@ call UnrecognizedCallback if it is defined\n");
   ot("  ldrb r10,[r7,#0x46] ;@ r10 = Load Flags (NZCV)\n");
   ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
   ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
@@ -1103,7 +1103,7 @@ static void PrintOpcodes()
   ot("  tst r11,r11\n");
   ot("  moveq r0,#0\n");
   ot("  movne lr,pc\n");
-  ot("  movne pc,r11 ;@ call UnrecognizedCallback if it is defined\n");
+  ot("  bxne r11 ;@ call UnrecognizedCallback if it is defined\n");
   ot("  ldrb r10,[r7,#0x46] ;@ r10 = Load Flags (NZCV)\n");
   ot("  ldr r5,[r7,#0x5c] ;@ Load Cycles\n");
   ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
