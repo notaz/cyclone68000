@@ -287,7 +287,7 @@ static void PrintFramework()
   ot("  cmp r2,#0xf\n");
   ot("  addeq r2,r2,#1 ;@ 0xf is really 0x10\n");
   ot("  tst r2,r2\n");
-  ot("  ldreqh r2,[r0],#2 ;@ counter is in next word\n");
+  ot(UAL(ldr,h,eq) "r2,[r0],#2 ;@ counter is in next word\n");
   ot("  tst r2,r2\n");
   ot("  beq unc_finish ;@ done decompressing\n");
   ot("  tst r1,r1\n");
@@ -658,7 +658,7 @@ static void PrintFramework()
   ot("  add lr,pc,#4*3\n");
 #endif
   ot("  tst r3,r3\n");
-  ot("  streqb r3,[r7,#0x47] ;@ just clear IRQ if there is no callback\n");
+  ot(UAL(str,b,eq) "r3,[r7,#0x47] ;@ just clear IRQ if there is no callback\n");
   ot("  mvneq r0,#0 ;@ and simulate -1 return\n");
 #if HAVE_ARMv5
   ot("  blxne r3\n");
@@ -1341,6 +1341,9 @@ static int CycloneMake()
   for(i=0xa000; i<0xb000;  i++) CyJump[i] = -2; // a-line emulation
   for(i=0xf000; i<0x10000; i++) CyJump[i] = -3; // f-line emulation
 
+#if USE_UAL_SYNTAX && !USE_MS_SYNTAX
+  ot("  .syntax unified\n");
+#endif
   ot(ms?"  area |.text|, code\n":"  .text\n  .balign 4\n\n");
   DeclareGlobalFunc("CycloneInitJT");
   DeclareGlobalFunc("CycloneResetJT");

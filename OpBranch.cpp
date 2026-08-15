@@ -375,7 +375,7 @@ int OpDbra(int op)
 #endif
 #else
     ot(";@ Get Branch offset:\n");
-    ot("  ldrhssh r0,[r4]\n");
+    ot(UAL(ldr,sh,hs) "r0,[r4]\n");
     ot("  addlo r4,r4,#2 ;@ Skip branch offset\n");
     ot("  sublo r5,r5,#4 ;@ additional cycles\n");
     ot("  addhs r4,r4,r0 ;@ r4 = New PC\n");

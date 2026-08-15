@@ -53,6 +53,11 @@
 #define USE_MS_SYNTAX               0
 
 /*
+ * If this option is enabled, UAL-compliant syntax is generated.
+ */
+#define USE_UAL_SYNTAX              0
+
+/*
  * Enable this option if you are going to use Cyclone to emulate Genesis /
  * Mega Drive system. As VDP chip in these systems had control of the bus,
  * several instructions were acting differently, for example TAS did'n have

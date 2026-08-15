@@ -50,6 +50,16 @@
 #define HAVE_UNALIGNED_ACCESSES HAVE_ARMv6
 #endif
 
+#if !defined(USE_UAL_SYNTAX)
+#define USE_UAL_SYNTAX 0
+#endif
+
+#if USE_UAL_SYNTAX
+#define UAL(inst,suffix,cond) "  " #inst #suffix #cond " "
+#else
+#define UAL(inst,suffix,cond) "  " #inst #cond #suffix " "
+#endif
+
 // Disa.c
 #include "Disa/Disa.h"
 
