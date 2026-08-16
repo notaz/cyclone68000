@@ -492,7 +492,9 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
       ot("\n");
     }
 
-    if (type==0 && dir) ot("  adds r3,r0,#0 ;@ save old value for V flag calculation, also clear V\n");
+    ot("  adds r3,r0,#0 ;@ clear C and V");
+    if (type==0 && dir) ot(", also save old value for V flag calculation");
+    ot("\n");
 
     ot(";@ Shift register:\n");
     if (type==0) ot("  movs r0,r0,%s %s\n",dir?"asl":"asr",pct);
@@ -501,8 +503,7 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
     OpGetFlags(0,0);
     if (usereg) { // store X only if count is not 0
       ot("  cmp %s,#0 ;@ shifting by 0?\n",pct);
-      ot("  biceq r10,r10,#0x20000000 ;@ if so, clear carry\n");
-      ot("  strne r10,[r7,#0x4c] ;@ else Save X bit\n");
+      ot("  strne r10,[r7,#0x4c] ;@ if not, Save X bit\n");
     } else {
       // count will never be 0 if we use immediate
       ot("  str r10,[r7,#0x4c] ;@ Save X bit\n");
@@ -520,11 +521,7 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
 
     if (type==0 && dir) {
       ot(";@ calculate V flag (set if sign bit changes at anytime):\n");
-      ot("  mov r1,#0x80000000\n");
-      ot("  ands r3,r3,r1,asr %s\n", pct);
-      ot("  cmpne r3,r1,asr %s\n", pct);
-      ot("  eoreq r1,r0,r3\n"); // above check doesn't catch (-1)<<(32+), so we need this
-      ot("  tsteq r1,#0x80000000\n");
+      ot("  cmp r3,r0,asr %s\n", pct);
       ot("  orrne r10,r10,#0x10000000\n");
       ot("\n");
     }
