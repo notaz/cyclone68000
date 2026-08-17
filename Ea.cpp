@@ -381,6 +381,10 @@ int EaRead(int a,int v,int ea,int size,int mask,EaRWType type,int set_nz)
       flags_set=1;
     }
   }
+  else if (type == earwt_zero_extend)
+  {
+    ZeroExtend(v, 0, size);
+  }
   else
   {
     if (type == earwt_shifted_up && shift) {
