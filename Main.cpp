@@ -514,7 +514,7 @@ static void PrintFramework()
   ot("  movle r0,#0\n");
   ot("  bxle lr ;@ no ints\n");
   ot("\n");
-  ot("  stmdb sp!,{r4,r5,r7,r8,r10,r11,lr}\n");
+  ot("  stmdb sp!,{r4-r8,r10,r11,lr}\n");
   ot("  mov r7,r0\n");
   ot("  mov r0,r2\n");
   ot("  ldrb r10,[r7,#0x46]  ;@ r10 = Flags (NZCV)\n");
@@ -529,7 +529,7 @@ static void PrintFramework()
   ot("  rsb r0,r5,#0\n");
   ot("  str r4,[r7,#0x40]   ;@ Save Current PC + Memory Base\n");
   ot("  strb r10,[r7,#0x46] ;@ Save Flags (NZCV)\n");
-  ot("  ldmia sp!,{r4,r5,r7,r8,r10,r11,lr}\n");
+  ot("  ldmia sp!,{r4-r8,r10,r11,lr}\n");
   ot("  bx lr\n");
   ot("\n");
   ot("\n");
