@@ -260,10 +260,11 @@ int OpNeg(int op)
   OpStart(op,ea); Cycles=size<2?4:6;
   if(ea >= 0x10)  Cycles*=2;
 
-  EaCalc (11,0x003f,ea,size,earwt_msb_dont_care);
-
-  if (type!=1) EaRead (11,0,ea,size,0x003f,earwt_msb_dont_care); // Don't need to read for 'clr' (or do we, for a dummy read?)
-  if (type==1) ot("\n");
+  if (type==1) EaCalc (11,0x003f,ea,size,earwt_msb_dont_care);
+#if HAVE_ARMv6
+  else if (type==3) EaCalcRead (11,0,ea,size,0x003f,earwt_sign_extend);
+#endif
+  else EaCalcRead (11,0,ea,size,0x003f,earwt_msb_dont_care); // Don't need to read for 'clr' (or do we, for a dummy read?)
 
   if (type==0)
   {
@@ -304,11 +305,15 @@ int OpNeg(int op)
   if (type==3)
   {
     ot(";@ Not:\n");
+#if HAVE_ARMv6
+    wtype=earwt_sign_extend;
+#else
     if(size!=2) {
       ot("  mov r0,r0,asl #%i\n",size?16:24);
       ot("  mvns r1,r0,asr #%i\n",size?16:24);
     }
     else
+#endif
       ot("  mvns r1,r0\n");
     OpGetFlagsNZ(1);
     ot("\n");
@@ -382,26 +387,21 @@ int OpExt(int op)
 {
   int ea=0;
   int size=0,use=0;
-  int shift=0;
 
   ea=op&0x0007;
   size=(op>>6)&1;
-  shift=32-(8<<size);
 
   use=OpBase(op,size);
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op); Cycles=4;
 
-  EaCalc (11,0x0007,ea,size+1,earwt_msb_dont_care);
-  EaRead (11,     0,ea,size+1,0x0007,earwt_msb_dont_care);
+  EaCalcRead (11,     1,ea,size,0x0007,earwt_sign_extend,1,1);
 
-  ot("  movs r0,r0,asl #%d\n",shift);
-  OpGetFlagsNZ(0);
-  ot("  mov r1,r0,asr #%d\n",shift);
+  OpGetFlagsNZ(1);
   ot("\n");
 
-  EaWrite(11,     1,ea,size+1,0x0007,earwt_msb_dont_care);
+  EaWrite(11,     1,ea,size+1,0x0007,earwt_msb_dont_care,1);
 
   OpEnd();
   return 0;

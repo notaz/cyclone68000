@@ -307,15 +307,12 @@ int OpMul(int op)
   if(type) Cycles=38;
   else     Cycles=sign?16:10;
 
-  EaCalcRead(-1,0,ea,1,0x003f,earwt_msb_dont_care);
-
-  EaCalc(11,0x0e00,rea, 2);
-  EaRead(11,     2,rea, 2,0x0e00);
-
-  ot("  movs r1,r0,asl #16\n");
-
   if (type==0) // div
   {
+    EaCalcRead(-1,0, ea,1,0x003f,earwt_msb_dont_care);
+    EaCalcRead(11,2,rea,2,0x0e00);
+
+    ot("  movs r1,r0,asl #16\n");
     // the manual says C is always cleared, but neither Musashi nor FAME do that
     //ot("  bic r10,r10,#0x20000000 ;@ always clear C\n");
     ot("  beq divzero%.4x ;@ division by zero\n",op);
@@ -359,21 +356,21 @@ int OpMul(int op)
       ot("  subcs r5,r5,#2\n");
       ot("\n");
 
-      ot("  movs r1,r3,lsl #16 ;@ set flags based on quotient\n");
-      OpGetFlagsNZ(1);
+      ot("  movs r0,r3,lsl #16 ;@ set flags based on quotient\n");
+      OpGetFlagsNZ(0);
       // signed overflow check
-      ot("  cmp r3,r1,asr #16 ;@ signed overflow?\n");
+      ot("  cmp r3,r0,asr #16 ;@ signed overflow?\n");
       ot("  movne r10,#0x90000000 ;@ set overflow/negative flags\n");
       ot("  bne endofop%.4x ;@ overflow!\n",op);
       ot("\n");
 
-      ot("  mov r1,r1,lsr #16\n");
-      ot("  orr r1,r1,r2,lsl #16 ;@ Insert remainder\n");
+      ot("  mov r0,r0,lsr #16\n");
+      ot("  orr r0,r0,r2,lsl #16 ;@ Insert remainder\n");
     }
     else
     {
-      ot("  mov r1,r2,ror #16 ;@ swap quotient and remainder\n");
-      ot("  movs r2,r1,lsl #16 ;@ set flags based on quotient\n");
+      ot("  mov r0,r2,ror #16 ;@ swap quotient and remainder\n");
+      ot("  movs r2,r0,lsl #16 ;@ set flags based on quotient\n");
       OpGetFlagsNZ(2);
     }
     ot("\n");
@@ -381,34 +378,48 @@ int OpMul(int op)
 
   if (type==1)
   {
-    ot(";@ Calculate cycles needed: 2*(#bits set in multiplier engine mask)\n");
-    if (sign) ot("  eor r0,r1,r1,lsl #1\n");
-    ot("  mov r12,#0x0F000000 ;@ count top 16 bits, the O(1) way\n");
-    ot("  orr r12,r12,r12,lsr #8 ;@ r12 = 0x0F0F0000\n");
-    ot("  eor r10,r12,r12,lsl #2 ;@ r10 = 0x33330000\n");
-    ot("  eor r3,r10,r10,lsl #1  ;@ r3  = 0x55550000\n");
-    ot("  and r3,r3,r%d,lsr #1\n",sign?0:1);
-    ot("  sub r0,r%d,r3\n",sign?0:1);
-    ot("  and r3,r10,r0,lsr #2\n");
-    ot("  and r0,r10,r0\n");
-    ot("  add r0,r0,r3\n");
-    ot("  add r0,r0,r0,lsr #4\n");
-    ot("  and r0,r12,r0\n");
-    ot("  add r0,r0,r0,lsl #8\n");
-    ot("  sub r5,r5,r0,lsr #23 ;@ cycles -= 2*bitcount(mask)\n");
+    EaRWType rtype=sign?earwt_sign_extend:earwt_zero_extend;
 
-    ot(";@ Get 16-bit signs right:\n");
-    ot("  mov r0,r1,%s #16\n",sign?"asr":"lsr");
-    if (sign) SignExtend(2,2,1);
-    else      ZeroExtend(2,2,1);
+    EaCalcRead(-1,0, ea,1,0x003f,rtype);
+    EaCalcRead(11,2,rea,1,0x0e00,rtype,0,1);
+    
+    ot(";@ Calculate cycles needed: 2*(#bits set in multiplier engine mask)\n");
+    if (sign) ot("  eor r1,r0,r0,lsl #1 ;@ zeros upper 16 bits\n");
+    ot(";@ count bottom 16 bits, the O(1) way\n");
+    // use the bit-trio method (HAKMEM 169) which needs fewer immediates
+ #if HAVE_ARMv6T2
+    ot("  movw r12,#0x9249 ;@ r12 = 0o111111\n");
+    ot("  movt r12,#0x38E3 ;@ r12 |= 0o070707 << 15\n");
+    ot("  and r3,r12,r%d,lsr #2\n",sign?1:0);
+    ot("  bic r10,r%d,r12\n",sign?1:0);
+    ot("  sub r1,r%d,r3\n",sign?1:0);
+    ot("  sub r1,r1,r10,lsr #1\n");
+ #else
+    ot("  mov r12,#0x38C00000\n");
+    ot("  orr r12,r12,#0x00238000 ;@ r12 = 0o070707 << 15\n");
+    ot("  eor r10,r12,r12,lsl #1  ;@ r10 = 0o111111 << 15\n");
+    ot("  and r3,r10,r%d,lsl #13\n",sign?1:0);
+    ot("  bic r10,r%d,r10,lsr #15\n",sign?1:0);
+    ot("  rsb r1,r3,r%d,lsl #15\n",sign?1:0);
+    ot("  sub r1,r1,r10,lsl #14\n");
+ #endif
+    ot("  add r1,r1,r1,lsr #3\n");
+ #if HAVE_ARMv6T2
+    ot("  and r1,r12,r1,lsl #15\n");
+ #else
+    ot("  and r1,r12,r1\n");
+ #endif
+    ot("  add r1,r1,r1,lsr #6\n");
+    ot("  add r1,r1,r1,lsl #12\n");
+    ot("  sub r5,r5,r1,lsr #26 ;@ cycles -= 2*bitcount(mask)\n");
     ot("\n");
 
-    ot("  muls r1,r2,r0\n");
-    OpGetFlagsNZ(1);
+    ot("  muls r0,r2,r0\n");
+    OpGetFlagsNZ(0);
   }
   ot("\n");
 
-  EaWrite(11, 1,rea, 2,0x0e00,earwt_shifted_up);
+  EaWrite(11, 0,rea, 2,0x0e00,earwt_msb_dont_care,type==1);
 
   if (type==0) ot("endofop%.4x%s\n",op,ms?"":":");
   opend_op_changes_cycles=1;
