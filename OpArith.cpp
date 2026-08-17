@@ -194,9 +194,9 @@ int OpArithReg(int op)
   ot("\n");
 
   ot(";@ Save result:\n");
-  if (size<2) ot("  mov r1,r1,asr #%d\n",size?16:24);
-  if (dir) EaWrite(11, 1, ea,size,0x003f,earwt_msb_dont_care);
-  else     EaWrite(11, 1,rea,size,0x0e00,earwt_msb_dont_care);
+  if (size<2) ot("  mov r1,r1,lsr #%d\n",size?16:24);
+  if (dir) EaWrite(11, 1, ea,size,0x003f,earwt_zero_extend);
+  else     EaWrite(11, 1,rea,size,0x0e00,earwt_zero_extend);
 
   if(rea==ea) {
     if(ea<8) Cycles=(size>=2)?8:4; else Cycles+=(size>=2)?26:14;

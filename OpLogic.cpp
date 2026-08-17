@@ -244,6 +244,7 @@ int OpNeg(int op)
 {
   // 01000tt0 xxeeeeee (tt=negx/clr/neg/not, xx=size, eeeeee=EA)
   int type=0,size=0,ea=0,use=0;
+  EaRWType wtype=earwt_msb_dont_care;
 
   type=(op>>9)&3;
   ea  =op&0x003f;
@@ -273,11 +274,12 @@ int OpNeg(int op)
     ot("  orr r3,r10,#0xb0000000 ;@ for old Z\n");
     OpGetFlags(1,1,0);
     if(size!=2) {
-      ot("  movs r1,r1,asr #%i\n",size?16:24);
+      ot("  movs r1,r1,lsr #%i\n",size?16:24);
       ot("  orreq r10,r10,#0x40000000 ;@ possily missed Z\n");
     }
     ot("  andeq r10,r10,r3 ;@ fix Z\n");
     ot("\n");
+    wtype=earwt_zero_extend;
   }
 
   if (type==1)
@@ -286,6 +288,7 @@ int OpNeg(int op)
     ot("  mov r1,#0\n");
     ot("  mov r10,#0x40000000 ;@ NZCV=0100\n");
     ot("\n");
+    wtype=earwt_zero_extend;
   }
 
   if (type==2)
@@ -294,7 +297,7 @@ int OpNeg(int op)
     if(size!=2) ot("  mov r0,r0,asl #%i\n",size?16:24);
     ot("  rsbs r1,r0,#0\n");
     OpGetFlags(1,1);
-    if(size!=2) ot("  mov r1,r1,asr #%i\n",size?16:24);
+    wtype=earwt_shifted_up;
     ot("\n");
   }
 
@@ -312,7 +315,7 @@ int OpNeg(int op)
   }
 
   if (type==1) eawrite_check_addrerr=1;
-  EaWrite(11, 1,ea,size,0x003f,earwt_msb_dont_care);
+  EaWrite(11, 1,ea,size,0x003f,wtype);
 
   OpEnd(ea);
 
@@ -430,16 +433,16 @@ int OpSet(int op)
   switch (cc)
   {
     case 0x00: // T
-      ot("  mvn r1,#0\n");
+      ot("  mov r1,#0xff\n"); // size is always 0
       if (ea<8) Cycles+=2;
       break;
     case 0x01: // F
-      ot("  mov r1,#0\n");
+      ot("  mov r1,#0x00\n");
       break;
     default:
-      ot("  mov r1,#0\n");
+      ot("  mov r1,#0x00\n");
       cond=TestCond(cc);
-      ot("  mvn%s r1,#0\n",cond);
+      ot("  mov%s r1,#0xff\n",cond); // size is always 0
       if (ea<8) ot("  sub%s r5,r5,#2 ;@ Extra cycles\n",cond);
       break;
   }
@@ -447,8 +450,8 @@ int OpSet(int op)
   ot("\n");
 
   eawrite_check_addrerr=1;
-  EaCalc (0,0x003f, ea,size,earwt_msb_dont_care);
-  EaWrite(0,     1, ea,size,0x003f,earwt_msb_dont_care);
+  EaCalc (0,0x003f, ea,size,earwt_zero_extend);
+  EaWrite(0,     1, ea,size,0x003f,earwt_zero_extend);
 
   opend_op_changes_cycles=changed_cycles;
   OpEnd(ea,0);

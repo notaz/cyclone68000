@@ -100,6 +100,8 @@ int OpMove(int op)
   int sea=0,tea=0;
   int size=0,use=0;
   int movea=0;
+  int split=0;
+  int r=1;
 
   // Get source and target EA
   sea = op&0x003f;
@@ -132,44 +134,46 @@ int OpMove(int op)
 
   OpStart(op,sea,tea); Cycles=4;
 
+#if SPLIT_MOVEL_PD
+  split = ((tea&0x38)==0x20 && (size==2 || movea)); // -(An)
+  if (split) r=11;
+#endif
+
   if (movea==0)
   {
     if (sea < 0x10 && size < 2)
     {
       eatype = earwt_zero_extend;
-      EaCalcRead(-1,1,sea,size,0x003f,eatype);
-      ot("  movs r2,r1,lsl #%d\n",size?16:24);
+      EaCalcRead(-1,r,sea,size,0x003f,eatype);
+      ot("  movs r2,r%d,lsl #%d\n",r,size?16:24);
       OpGetFlagsNZ(2);
     }
     else
     {
       eatype = earwt_shifted_up;
-      EaCalcRead(-1,1,sea,size,0x003f,eatype,1);
-      OpGetFlagsNZ(1);
+      EaCalcRead(-1,r,sea,size,0x003f,eatype,1);
+      OpGetFlagsNZ(r);
     }
     ot("\n");
   }
   else
   {
     eatype = earwt_sign_extend;
-    EaCalcRead(-1,1,sea,size,0x003f,eatype);
+    EaCalcRead(-1,r,sea,size,0x003f,eatype);
     size=2; // movea always expands to 32-bits
   }
 
   eawrite_check_addrerr=1;
-#if SPLIT_MOVEL_PD
-  if ((tea&0x38)==0x20 && size==2) { // -(An)
+  if (split) { // -(An)
     EaCalc (8,0x0e00,tea,size,earwt_msb_dont_care);
-    ot("  mov r11,r1\n");
     ot("  add r0,r8,#2\n");
-    EaWrite(0,     1,tea,1,0x0e00,earwt_msb_dont_care);
-    EaWrite(8,    11,tea,1,0x0e00,earwt_shifted_up);
+    EaWrite(0,     r,tea,1,0x0e00,earwt_msb_dont_care);
+    EaWrite(8,     r,tea,1,0x0e00,earwt_shifted_up);
   }
   else
-#endif
   {
     EaCalc (0,0x0e00,tea,size,eatype);
-    EaWrite(0,     1,tea,size,0x0e00,eatype);
+    EaWrite(0,     r,tea,size,0x0e00,eatype);
   }
 
 #if CYCLONE_FOR_GENESIS && !MEMHANDLERS_CHANGE_CYCLES
@@ -252,8 +256,8 @@ int OpMoveSr(int op)
   {
     eawrite_check_addrerr=1;
     OpFlagsToReg(type==0);
-    EaCalc (0,0x003f,ea,size,earwt_msb_dont_care);
-    EaWrite(0,     1,ea,size,0x003f,earwt_msb_dont_care);
+    EaCalc (0,0x003f,ea,size,earwt_zero_extend);
+    EaWrite(0,     1,ea,size,0x003f,earwt_zero_extend);
   }
 
   if (type==2 || type==3)
@@ -408,9 +412,9 @@ int OpMovem(int op)
   // must save PC, need a spare register
   FlushPC(1);
 
-  ot(";@ r4=Register Index*4:\n");
-  if (decr) ot("  mov r4,#0x40 ;@ order reversed for -(An)\n");
-  else      ot("  mov r4,#-4\n");
+  ot(";@ r4=Register Pointer:\n");
+  if (decr) ot("  add r4,r7,#0x40 ;@ order reversed for -(An)\n");
+  else      ot("  sub r4,r7,#4\n");
   
   ot("\n");
   ot("  tst r11,r11\n");        // sanity check
@@ -437,24 +441,24 @@ int OpMovem(int op)
     ot("  ;@ Copy memory to register:\n");
     earead_check_addrerr=0; // already checked
     EaRead (6,0,ea,size,0x003f);
-    ot("  str r0,[r7,r4] ;@ Save value into Dn/An\n");
+    ot("  str r0,[r4] ;@ Save value into Dn/An\n");
   }
   else
   {
     ot("  ;@ Copy register to memory:\n");
-    ot("  ldr r1,[r7,r4] ;@ Load value from Dn/An\n");
 #if SPLIT_MOVEL_PD
     if (decr && size==2) { // -(An)
+      ot("  ldrh r1,[r4] ;@ Load value from lower half of Dn/An\n");
       ot("  add r0,r6,#2\n");
-      EaWrite(0,1,ea,1,0x003f,earwt_msb_dont_care);
-      ot("  ldr r1,[r7,r4] ;@ Load value from Dn/An\n");
-      ot("  mov r0,r6\n");
-      EaWrite(0,1,ea,1,0x003f,earwt_shifted_up);
+      EaWrite(0,1,ea,1,0x003f,earwt_zero_extend);
+      ot("  ldrh r1,[r4,#2] ;@ Load value from upper half of Dn/An\n");
+      EaWrite(6,1,ea,1,0x003f,earwt_zero_extend);
     }
     else
 #endif
     {
-      EaWrite(6,1,ea,size,0x003f);
+      ot("  ldr%s r1,[r4] ;@ Load value from Dn/An\n",Narm[size&3]);
+      EaWrite(6,1,ea,size,0x003f,earwt_zero_extend);
     }
   }
 
@@ -610,41 +614,74 @@ int OpMovep(int op)
 
     EaCalc(8,0x000f,ea,size);
     if(size==2) { // if operand is long
-      ot("  mov r1,r11,lsr #24 ;@ first byte\n");
-      EaWrite(8,1,ea,0,0x000f); // store first byte
+      EaWrite(8,11,ea,0,0x000f,earwt_shifted_up); // store first byte
       ot("  add r0,r8,#%i\n",(aadd+=2));
+#if HAVE_ARMv6
+      ot("  uxtb r1,r11,ror #16 ;@ second byte\n");
+      EaWrite(0,1,ea,0,0x000f,earwt_zero_extend); // store second byte
+#else
       ot("  mov r1,r11,lsr #16 ;@ second byte\n");
-      EaWrite(0,1,ea,0,0x000f); // store second byte
+      EaWrite(0,1,ea,0,0x000f,earwt_msb_dont_care); // store second byte
+#endif
       ot("  add r0,r8,#%i\n",(aadd+=2));
     } else {
       ot("  mov r0,r8\n");
     }
+#if HAVE_ARMv6
+    ot("  uxtb r1,r11,ror #8 ;@ first or third byte\n");
+    EaWrite(0,1,ea,0,0x000f,earwt_zero_extend);
+#else
     ot("  mov r1,r11,lsr #8 ;@ first or third byte\n");
-    EaWrite(0,1,ea,0,0x000f);
+    EaWrite(0,1,ea,0,0x000f,earwt_msb_dont_care);
+#endif
     ot("  add r0,r8,#%i\n",(aadd+=2));
-    ot("  and r1,r11,#0xff\n");
-    EaWrite(0,1,ea,0,0x000f);
+    EaWrite(0,11,ea,0,0x000f,earwt_msb_dont_care);
   }
   else // mem to reg
   {
-    EaCalc(6,0x000f,ea,size,earwt_shifted_up);
-    EaRead(6,11,ea,0,0x000f,earwt_shifted_up); // read first byte
-    ot("  add r0,r6,#2\n");
-    EaRead(0,1,ea,0,0x000f,earwt_shifted_up); // read second byte
-    if(size==2) { // if operand is long
-      ot("  orr r11,r11,r1,lsr #8 ;@ second byte\n");
+    int r_out;
+    EaRWType rtype=earwt_zero_extend;
+#if HAVE_ARMv6T2
+    rtype=earwt_msb_dont_care; // use bitfield inserts to avoid explicit zero-ext
+#endif
+    if (size==2) { // if operand is long
+      EaCalcRead(6,11,ea,0,0x000f,earwt_shifted_up); // read first byte
+      ot("  add r0,r6,#2\n");
+      EaRead(0,0,ea,0,0x000f,rtype); // read second byte
+#if HAVE_ARMv6T2
+      ot("  bfi r11,r0,#16,#8\n");
+#else
+      ot("  orr r11,r11,r0,lsl #16\n");
+#endif
       ot("  add r0,r6,#4\n");
-      EaRead(0,1,ea,0,0x000f,earwt_shifted_up);
-      ot("  orr r11,r11,r1,lsr #16 ;@ third byte\n");
+      EaRead(0,0,ea,0,0x000f,rtype); // read third byte
+#if HAVE_ARMv6T2
+      ot("  bfi r11,r0,#8,#8\n");
+#else
+      ot("  orr r11,r11,r0,lsl #8\n");
+#endif
       ot("  add r0,r6,#6\n");
-      EaRead(0,1,ea,0,0x000f,earwt_shifted_up);
-      ot("  orr r1,r11,r1,lsr #24 ;@ fourth byte\n");
+      EaRead(0,0,ea,0,0x000f,rtype); // read fourth byte
+#if HAVE_ARMv6T2
+      ot("  bfi r11,r0,#0,#8\n");
+#else
+      ot("  orr r11,r11,r0\n");
+#endif
+      r_out=11;
     } else {
-      ot("  orr r1,r11,r1,lsr #8 ;@ second byte\n");
+      EaCalcRead(6,11,ea,0,0x000f,earwt_msb_dont_care); // read first byte
+      ot("  add r0,r6,#2\n");
+      EaRead(0,0,ea,0,0x000f,rtype); // read second byte
+#if HAVE_ARMv6T2
+      ot("  bfi r0,r11,#8,#8\n");
+#else
+      ot("  orr r0,r0,r11,lsl #8\n");
+#endif
+      r_out=0;
     }
     // store the result
-    EaCalc(0,0x0e00,rea,size,earwt_shifted_up);
-    EaWrite(0,1,rea,size,0x0e00,earwt_shifted_up);
+    EaCalc(8,0x0e00,rea,size,earwt_msb_dont_care);
+    EaWrite(8,r_out,rea,size,0x0e00,earwt_msb_dont_care);
     ot("  ldr r6,[r7,#0x54]\n");
   }
 

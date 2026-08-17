@@ -21,6 +21,13 @@
 #include CONFIG_FILE
 
 // Enforce ARM architecture hierarchy even if a custom config file doesn't
+#ifndef HAVE_ARMv6T2
+#define HAVE_ARMv6T2 0
+#elif HAVE_ARMv6T2
+#undef HAVE_ARMv6
+#define HAVE_ARMv6 1
+#endif
+
 #ifndef HAVE_ARMv6
 #define HAVE_ARMv6 0
 #elif HAVE_ARMv6
