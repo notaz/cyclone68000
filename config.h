@@ -13,6 +13,9 @@
  * Note: The highest enabled architecture version implicitly enables
  * all lower versions.
  */
+#ifndef HAVE_ARMv6T2
+#define HAVE_ARMv6T2                0
+#endif
 #ifndef HAVE_ARMv6
 #define HAVE_ARMv6                  0
 #endif

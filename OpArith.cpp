@@ -736,14 +736,14 @@ int OpAddx(int op)
   ot("  orr r3,r10,#0xb0000000 ;@ for old Z\n");
   OpGetFlags(type==0,1,0); // subtract
   if (size<2) {
-    ot("  movs r2,r1,lsr #%i\n", size?16:24);
+    ot("  movs r1,r1,lsr #%i\n", size?16:24);
     ot("  orreq r10,r10,#0x40000000 ;@ add potentially missed Z\n");
   }
   ot("  andeq r10,r10,r3 ;@ fix Z\n");
   ot("\n");
 
   ot(";@ Save result:\n");
-  EaWrite(11, 1, dea,size,0x0e00,earwt_shifted_up);
+  EaWrite(11, 1, dea,size,0x0e00,earwt_zero_extend);
 
   ot("  ldr r6,[r7,#0x54]\n");
   OpEnd(sea,dea);
