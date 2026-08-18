@@ -141,7 +141,7 @@ int OpMove(int op)
 
   if (movea==0)
   {
-    if (sea < 0x10 && size < 2)
+    if ((sea < 0x10 || sea == 0x3c) && size < 2)
     {
       eatype = earwt_zero_extend;
       EaCalcRead(-1,r,sea,size,0x003f,eatype);
