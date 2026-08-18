@@ -462,75 +462,55 @@ int OpAbcd(int op)
   if (mem)
   {
     ot(";@ Get src/dest EA vals\n");
-    EaCalc (0,0x000f, sea,0,earwt_msb_dont_care);
-    EaRead (0,     6, sea,0,0x000f,earwt_msb_dont_care);
-    EaCalcRead(11,0,dea,0,0x0e00,earwt_msb_dont_care);
+    EaCalcRead(-1,11,sea,0,0x000f,earwt_msb_dont_care);
+    EaCalcRead( 8, 0,dea,0,0x0e00,earwt_msb_dont_care);
   }
   else
   {
     ot(";@ Get src/dest reg vals\n");
-    EaCalcRead(-1,6,sea,0,0x0007,earwt_msb_dont_care);
-    EaCalcRead(11,0,dea,0,0x0e00,earwt_msb_dont_care);
+    EaCalcRead(-1,11,sea,0,0x0007,earwt_msb_dont_care);
+    EaCalcRead( 8, 0,dea,0,0x0e00,earwt_msb_dont_care);
   }
 
-  ot("  bic r10,r10,#0xb1000000 ;@ clear all flags except old Z\n");
-
   ot("  ldr r1,[r7,#0x4c] ;@ Get X bit\n");
-  ot("  and r2,r0,#0x0f\n");
-  ot("  movs r12,r1,lsl #3 ;@ X into carry\n");
-  ot("  and r1,r6,#0x0f\n");
+  ot("  orr r3,r10,#0xb0000000 ;@ for old Z\n");
+  ot("  movs r1,r1,lsl #3 ;@ X into carry\n");
+
   if (type)
   {
     // abcd
-    ot("  adc r1,r2,r1\n");
-    ot("  cmp r1,#9\n");
+    ot("  eor r1,r0,r11\n");
+    ot("  adc r0,r0,r11\n");
+    ot("  eor r1,r1,r0 ;@ carries from each bit of ADC\n");
 
-    ot("  and r0,r0,#0xf0\n");
-    ot("  and r6,r6,#0xf0\n");
-    ot("  add r1,r1,r0\n");
-    ot("  add r1,r1,r6\n");
-    ot("  mov r12,r1\n");
-    ot("  addhi r12,r12,#6 ;@ Decimal adjust units\n");
-    ot("  tst r1,#0x80\n");
-    ot("  orreq r10,r10,#0x10000000 ;@ Undefined V behavior\n");
-    ot("  cmp r12,#0x9f\n");
-    ot("  orrhi r10,r10,#0x20000000 ;@ C\n");
-    ot("  subhi r12,r12,#0xa0\n");
-    ot("  movs r0,r12,lsl #24\n");
-    ot("  bicpl r10,r10,#0x10000000 ;@ Undefined V behavior part II\n");
+    ot("  add r2,r0,#0x66\n");
+    ot("  eor r2,r2,r0 ;@ carries from each bit of adjust\n");
+    ot("  orr r2,r2,r1 ;@ combine carries\n");
   }
   else
   {
     // sbcd
-    ot("  mov r12,#0 ;@ corf\n");
-    ot("  adc r1,r1,#0\n");
-    ot("  sub r1,r2,r1\n");
-    ot("  cmp r1,#0x0f\n");
-    ot("  movhi r12,#6\n");
-
-    ot("  and r0,r0,#0xf0\n");
-    ot("  and r6,r6,#0xf0\n");
-    ot("  add r1,r1,r0\n");
-    ot("  sub r1,r1,r6\n");
-    ot("  tst r1,#0x80\n");
-    ot("  orrne r10,r10,#0x10000000 ;@ Undefined V behavior\n");
-    ot("  cmp r1,r12\n");
-    ot("  orrlt r10,r10,#0x20000000 ;@ C\n");
-    ot("  cmp r1,#0xff\n");
-    ot("  addhi r1,r1,#0xa0\n");
-    ot("  sub r12,r1,r12\n");
-    ot("  movs r0,r12,lsl #24\n");
-    ot("  bicmi r10,r10,#0x10000000 ;@ Undefined V behavior part II\n");
+    ot("  adc r1,r11,#0\n");
+    ot("  eor r2,r11,r0\n");
+    ot("  sub r0,r0,r1\n");
+    ot("  eor r2,r2,r0 ;@ borrows from each bit of SBC\n");
   }
 
-  ot("  orrmi r10,r10,#0x80000000 ;@ Undefined N behavior\n");
-  ot("  bicne r10,r10,#0x40000000 ;@ Z flag\n");
-  ot("  str r10,[r7,#0x4c] ;@ Save X bit\n");
+  ot("  and r2,r2,#0x110 ;@ generate adjustment, shifted left by 2\n");
+  ot("  orr r1,r2,r2,lsr #1\n");
+
+  ot("  mov r0,r0,lsl #24\n");
+  if (type) ot("  adds r0,r0,r1,lsl #22 ;@ add adjustment, handles undefined V behavior\n");
+  else      ot("  subs r0,r0,r1,lsl #22 ;@ subtract adjustment, handles undefined V behavior\n");
+
+  OpGetFlags(type==0,0);
+  ot("  orr r2,r10,r2,lsl #21 ;@ combine carry from adjustment check\n");
+  ot("  and r10,r2,r3 ;@ fix Z\n");
+  ot("  str r2,[r7,#0x4c] ;@ Save X bit\n");
   ot("\n");
 
-  EaWrite(11, 0, dea,0,0x0e00,earwt_shifted_up);
+  EaWrite(8,0,dea,0,0x0e00,earwt_shifted_up);
 
-  ot("  ldr r6,[r7,#0x54]\n");
   OpEnd(sea,dea);
 
   return 0;
@@ -552,38 +532,31 @@ int OpNbcd(int op)
   OpStart(op,ea); Cycles=6;
   if(ea >= 8)  Cycles+=2;
 
-  EaCalcRead(11,0,ea,0,0x003f,earwt_zero_extend);
+  EaCalcRead(11,0,ea,0,0x003f,earwt_msb_dont_care);
 
-  // this is rewrite of Musashi's code
-  ot("  ldr r2,[r7,#0x4c]\n");
-  ot("  bic r10,r10,#0xb0000000 ;@ clear all flags, except Z\n");
-  ot("  and r2,r2,#0x20000000\n");
-  ot("  rsb r1,r0,#0 ;@ do arithmetic\n");
-  ot("  subs r1,r1,r2,lsr #29 ;@ X\n");
+  // specialization of sbcd implementation
+  ot("  ldr r1,[r7,#0x4c] ;@ Get X bit\n");
+  ot("  orr r3,r10,#0xb0000000 ;@ for old Z\n");
+  ot("  mov r1,r1,lsl #2 ;@ X into sign\n");
 
-  ot("  beq finish%.4x\n",op);
-  ot("\n");
+  ot("  rsb r1,r0,r1,asr #31 ;@ r1=0-r0-X\n");
+  ot("  eor r0,r0,r1 ;@ borrows from each bit of SBC\n");
 
-  ot("  movs r1,r1,lsl #24\n");
-  ot("  orrmi r10,r10,#0x10000000 ;@ Undefined V behavior\n");
-  ot("  orr r2,r1,r0,lsl #24\n");
-  ot("  tst r2,#0x0f000000\n");
-  ot("  andeq r1,r1,#0xf0000000\n");
-  ot("  orreq r1,r1,#0x06000000\n");
-  ot("  adds r1,r1,#0x9a000000\n");
-  ot("  bicmi r10,r10,#0x10000000 ;@ Undefined V behavior part II\n");
-  ot("  orrmi r10,r10,#0x80000000 ;@ Undefined N behavior\n");
-  ot("  bicne r10,r10,#0x40000000 ;@ Z\n");
-  ot("  orr r10,r10,#0x20000000 ;@ C\n");
+  ot("  and r0,r0,#0x110 ;@ generate adjustment, shifted left by 2\n");
+  ot("  orr r2,r0,r0,lsr #1\n");
+
+  ot("  mov r1,r1,lsl #24\n");
+  ot("  subs r1,r1,r2,lsl #22 ;@ subtract adjustment, handles undefined V behavior\n");
+  OpGetFlags(1,0);
+
+  ot("  orr r2,r10,r0,lsl #21 ;@ combine carry from adjustment check\n");
+
+  ot("  and r10,r2,r3 ;@ fix Z\n");
+  ot("  str r2,[r7,#0x4c] ;@ Save X bit\n");
   ot("\n");
 
   EaWrite(11, 1, ea,0,0x3f,earwt_shifted_up);
 
-  ot("finish%.4x%s\n",op,ms?"":":");
-  ot("  str r10,[r7,#0x4c] ;@ Save X\n");
-  ot("\n");
-
-  ot("  ldr r6,[r7,#0x54]\n");
   OpEnd(ea);
 
   return 0;
