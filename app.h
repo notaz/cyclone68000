@@ -46,6 +46,10 @@
 #define HAVE_ARMv4_ARM9 0
 #endif
 
+#if !defined(HAVE_UNALIGNED_ACCESSES)
+#define HAVE_UNALIGNED_ACCESSES HAVE_ARMv6
+#endif
+
 // Disa.c
 #include "Disa/Disa.h"
 

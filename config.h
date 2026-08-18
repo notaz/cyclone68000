@@ -35,6 +35,15 @@
 #endif
 
 /*
+ * If the following macro is defined, overrides the architecture default
+ * for unaligned data accesses. By default, ARMv6 and up will use
+ * unaligned accesses when fetching 32-bit operands for instructions.
+ * This should be explicitly disabled if the target system has unaligned
+ * access traps enabled, or if unaligned accesses have poor performance.
+ */
+/* #define HAVE_UNALIGNED_ACCESSES     0 */
+
+/*
  * If this option is enabled, Microsoft ARMASM compatible output is generated
  * (output file -  Cyclone.asm). Otherwise GNU as syntax is used (Cyclone.s).
  */

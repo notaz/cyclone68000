@@ -258,9 +258,14 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type,int set_nz,int force_shi
 
   if (ea==0x39) // (al)
   {
+#if HAVE_UNALIGNED_ACCESSES
+    ot("  ldr r2,[r4],#4 ;@ Fetch Absolute Long address (unaligned)\n"); pc_dirty=1;
+    ot("  mov r%d,r2,ror #16 ;@ Swap halfword order\n",a);
+#else
     ot("  ldrh r2,[r4],#2 ;@ Fetch Absolute Long address\n");
     ot("  ldrh r0,[r4],#2\n"); pc_dirty=1;
     ot("  orr r%d,r0,r2,lsl #16\n",a);
+#endif
     Cycles+=size<2 ? 12:16; // Extra cycles
     return 0;
   }
@@ -308,9 +313,14 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type,int set_nz,int force_shi
       return 0;
     }
 
+#if HAVE_UNALIGNED_ACCESSES
+    ot("  ldr r2,[r4],#4 ;@ Fetch immediate value (unaligned)\n"); pc_dirty=1;
+    ot("  mov%s r%d,r2,ror #16 ;@ Swap halfword order\n",set_nz?"s":"",a);
+#else
     ot("  ldrh r2,[r4],#2 ;@ Fetch immediate value\n");
     ot("  ldrh r3,[r4],#2\n"); pc_dirty=1;
     ot("  orr%s r%d,r3,r2,lsl #16\n",set_nz?"s":"",a);
+#endif
     Cycles+=8; // Extra cycles
     return 0;
   }

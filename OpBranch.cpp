@@ -428,7 +428,7 @@ int OpBranch(int op)
   int size=0,use=0,checkpc=0;
   int offset=0;
   int cc=0;
-  const char *asr_r11="";
+  const char *shift="";
   const char *cond;
   int pc_reg=0;
 
@@ -461,15 +461,24 @@ int OpBranch(int op)
     }
     else
     {
+#if HAVE_UNALIGNED_ACCESSES
+      ot("  ldr r11,[r4] ;@ Fetch Branch offset (unaligned)\n");
+      shift=",ror #16";
+#else
       ot("  ldrh r2,[r4] ;@ Fetch Branch offset\n");
       ot("  ldrh r11,[r4,#2]\n");
       ot("  orr r11,r11,r2,lsl #16\n");
+#endif
     }
   }
   else
   {
+#if HAVE_ARMv6
+    SignExtend(11,8,0);
+#else
     ot("  mov r11,r8,asl #24 ;@ Shift 8-bit signed offset up...\n\n");
-    asr_r11=",asr #24";
+    shift=",asr #24";
+#endif
   }
 
   ot(";@ Branch taken - Add on r0 to PC\n");
@@ -501,12 +510,12 @@ int OpBranch(int op)
 #endif
   if (checkpc)
   {
-    CheckPc(4,11,0,asr_r11);
+    CheckPc(4,11,0,shift);
     pc_reg=0;
   }
   else
   {
-    ot("  add r4,r4,r11%s ;@ r4 = New PC\n",asr_r11);
+    ot("  add r4,r4,r11%s ;@ r4 = New PC\n",shift);
     pc_reg=4;
   }
 
