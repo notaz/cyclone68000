@@ -21,6 +21,8 @@ const char * const Narm[4]={ "b", "h","",""}; // Normal ARM Extensions for opera
 const char * const Sarm[4]={"sb","sh","",""}; // Sign-extend ARM Extensions for operand sizes 0,1,2
 int Cycles; // Current cycles for opcode
 int pc_dirty; // something changed PC during processing
+int pc_in_reg; // PC is currently held in r4
+int flags_in_reg; // flags are currently held in r10
 int arm_op_count;
 
 // opcodes often used by games
@@ -143,6 +145,8 @@ static void AddressErrorWrapper(char rw, const char *dataprg, int iw)
 
 void FlushPC(int force)
 {
+  if (force)
+    pc_in_reg = 0;
 #if MEMHANDLERS_NEED_PC
   force |= pc_dirty;
   pc_dirty = 0;
@@ -289,6 +293,7 @@ static void PrintFramework()
   ot("\n");
 
   // --------------
+  pc_dirty=0; pc_in_reg=0; flags_in_reg=0; // prevent memhandlers from trashing regs
   ot("CycloneResetJT%s\n", ms?"":":");
   ot("  stmfd sp!,{r7,lr}\n");
   ot("  mov r7,r0\n");
@@ -505,6 +510,7 @@ static void PrintFramework()
   ot("\n");
 
   // --------------
+  pc_in_reg=1; flags_in_reg=1; // allow memhandlers to save/restore pc/flag regs
   ot("CycloneFlushIrq%s\n", ms?"":":");
   ot("  ldr r1,[r0,#0x44]  ;@ Get SR high T_S__III and irq level\n");
   ot("  mov r2,r1,lsr #24 ;@ Get IRQ level\n"); // same as  ldrb r0,[r7,#0x47]
@@ -568,6 +574,9 @@ static void PrintFramework()
   ot(";@ Push old PC onto stack\n");
   ot("  sub r0,r11,#4 ;@ Predecremented A7\n");
   ot("  sub r1,r4,r1 ;@ r1 = Old PC\n");
+#if MEMHANDLERS_NEED_PC
+  FlushPC(1); // prevent repeated restores
+#endif
   MemHandler(1,2);
   ot(";@ Push old SR:\n");
   ot("  ldr r0,[r7,#0x4c]   ;@ X bit\n");
@@ -589,7 +598,9 @@ static void PrintFramework()
 #if USE_INT_ACK_CALLBACK
   ot(";@ call IrqCallback if it is defined\n");
 #if INT_ACK_NEEDS_STUFF
+ #if !MEMHANDLERS_NEED_PC // already saved
   ot("  str r4,[r7,#0x40] ;@ Save PC\n");
+ #endif
   ot("  mov r1,r10,lsr #28\n");
   ot("  strb r1,[r7,#0x46] ;@ Save Flags (NZCV)\n");
   ot("  str r5,[r7,#0x5c] ;@ Save Cycles\n");
@@ -691,6 +702,9 @@ static void PrintFramework()
   ot("  sub r0,r0,#4 ;@ Predecremented A7\n");
   ot("  str r0,[r7,#0x3c] ;@ Save A7\n");
   ot("  sub r1,r4,r1 ;@ r1 = Old PC\n");
+#if MEMHANDLERS_NEED_PC
+  FlushPC(1); // prevent repeated restores
+#endif
   MemHandler(1,2);
   ot(";@ Push old SR:\n");
   ot("  ldr r0,[r7,#0x4c]   ;@ X bit\n");
@@ -801,6 +815,9 @@ static void PrintFramework()
   ot("  sub r0,r0,#4 ;@ Predecremented A7\n");
   ot("  sub r1,r4,r1 ;@ r1 = Old PC\n");
   ot("  str r0,[r7,#0x3c] ;@ Save A7\n");
+#if MEMHANDLERS_NEED_PC
+  FlushPC(1); // prevent repeated restores
+#endif
   MemHandler(1,2,0,EMULATE_HALT);
   // SR
   ot(";@ Push old SR:\n");
@@ -946,8 +963,10 @@ int MemHandler(int type,int size,int addrreg,int need_addrerr_check)
   char what[32];
 
 #if MEMHANDLERS_NEED_FLAGS
-  ot("  mov r3,r10,lsr #28\n");
-  ot("  strb r3,[r7,#0x46] ;@ Save Flags (NZCV)\n");
+  if (flags_in_reg) {
+    ot("  mov r3,r10,lsr #28\n");
+    ot("  strb r3,[r7,#0x46] ;@ Save Flags (NZCV)\n");
+  }
 #endif
   FlushPC();
 
@@ -1007,11 +1026,14 @@ int MemHandler(int type,int size,int addrreg,int need_addrerr_check)
   ot(" handler\n");
 
 #if MEMHANDLERS_CHANGE_FLAGS
-  ot("  ldrb r10,[r7,#0x46] ;@ r10 = Load Flags (NZCV)\n");
-  ot("  mov r10,r10,lsl #28\n");
+  if (flags_in_reg) {
+    ot("  ldrb r10,[r7,#0x46] ;@ r10 = Load Flags (NZCV)\n");
+    ot("  mov r10,r10,lsl #28\n");
+  }
 #endif
 #if MEMHANDLERS_CHANGE_PC
-  ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
+  if (pc_in_reg)
+    ot("  ldr r4,[r7,#0x40] ;@ Load PC\n");
 #endif
 
   return 0;

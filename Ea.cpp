@@ -144,6 +144,15 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type)
 
   DisaPc=2; DisaGetEa(text,ea,size); // Get text version of the effective address
 
+  if (a==10 && flags_in_reg)
+  {
+#if MEMHANDLERS_NEED_FLAGS
+    ot("  mov r10,r10,lsr #28\n");
+    ot("  strb r10,[r7,#0x46] ;@ Save Flags (NZCV)\n");
+#endif
+    flags_in_reg=0;
+  }
+
   if (ea<0x10)
   {
     // Saves one opcode as we can shift in ldr/str
@@ -308,6 +317,15 @@ int EaRead(int a,int v,int ea,int size,int mask,EaRWType type,int set_nz)
   const char *s="";
   int flags_set=0;
   int shift=0;
+
+  if (v==10 && flags_in_reg)
+  {
+#if MEMHANDLERS_NEED_FLAGS
+    ot("  mov r10,r10,lsr #28\n");
+    ot("  strb r10,[r7,#0x46] ;@ Save Flags (NZCV)\n");
+#endif
+    flags_in_reg=0;
+  }
 
   if (set_nz) {
     if (type == earwt_msb_dont_care || type == earwt_zero_extend) {

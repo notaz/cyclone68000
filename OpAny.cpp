@@ -75,6 +75,8 @@ void OpStart(int op, int sea, int tea, int op_changes_cycles, int supervisor_che
   if (last_op_count!=arm_op_count)
     ot("\n");
   pc_dirty = 1;
+  pc_in_reg = 1;
+  flags_in_reg = 1;
   opend_op_changes_cycles = opend_check_interrupt = opend_check_trace = 0;
 }
 
@@ -156,6 +158,7 @@ int OpGetFlags(int subtract,int xbit,int specialz)
   {
     ot("  str r10,[r7,#0x4c] ;@ Save X bit\n");
   }
+  flags_in_reg=1;
   return 0;
 }
 
@@ -163,6 +166,7 @@ void OpGetFlagsNZ(int rd)
 {
   ot("  and r10,r%d,#0x80000000 ;@ r10=N_flag\n",rd);
   ot("  orreq r10,r10,#0x40000000 ;@ get NZ, clear CV\n");
+  flags_in_reg=1;
 }
 
 // size 0=8bit, 1=16bit

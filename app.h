@@ -66,6 +66,8 @@ extern const char * const Narm[4]; // Normal ARM Extensions for operand sizes 0,
 extern const char * const Sarm[4]; // Sign-extend ARM Extensions for operand sizes 0,1,2
 extern int  Cycles;   // Current cycles for opcode
 extern int  pc_dirty; // something changed PC during processing
+extern int  pc_in_reg; // PC is currently held in r4
+extern int  flags_in_reg; // flags are currently held in r10
 extern int  arm_op_count; // for stats
 void ot(const char *format, ...)
 #ifdef __GNUC__

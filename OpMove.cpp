@@ -473,7 +473,7 @@ int OpMovem(int op)
   }
 
   ot("NoRegs%.4x%s\n",op, ms?"":":");
-  ot("  ldr r4,[r7,#0x40]\n");
+  ot("  ldr r4,[r7,#0x40]\n"); pc_in_reg=1;
   ot("  ldr r6,[r7,#0x54] ;@ restore Opcode Jump table\n");
   ot("\n");
 
