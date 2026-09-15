@@ -843,7 +843,7 @@ int OpChk(int op)
   use&=~0x0e00; // Use 1 handler for register d0-7
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
-  OpStart(op,ea); Cycles=10;
+  OpStart(op,ea,0,1); Cycles=10;
 
   ot(";@ Get value into r0:\n");
   EaCalcRead(-1,0,ea,size,0x003f,earwt_msb_dont_care);
