@@ -458,7 +458,7 @@ int OpSet(int op)
 // Emit a Asr/Lsr/Roxr/Ror opcode
 static int EmitAsr(int op,int type,int dir,int count,int size,int usereg)
 {
-  char pct[8]=""; // count
+  char pct[12]=""; // count
   int shift=32-(8<<size);
 
   if (count>=1) sprintf(pct,"#%d",count); // Fixed count
