@@ -458,7 +458,7 @@ bool div_iter_tests()
         uint32_t dividend = dividend_d(g);
         uint16_t divisor = divisor_d(g);
         int dividend_shift = dividend_shift_d(g);
-        int divisor_shift = dividend_shift_d(g);
+        int divisor_shift = divisor_shift_d(g);
 
         int32_t dividend_s = dividend_shift < 0 ? INT32_MIN : (int32_t)dividend >> dividend_shift;
         int16_t divisor_s = divisor_shift < 0 ? INT16_MIN : (int16_t)divisor >> divisor_shift;
@@ -589,10 +589,11 @@ int main()
            stats.passes, stats.skips, stats.failures, stats.warnings);
 
     puts("Running DIV* iter tests...");
-    if (div_iter_tests())
+    bool div_iter_passed = div_iter_tests();
+    if (div_iter_passed)
     {
         puts("DIV* iter tests passed");
     }
 
-    return EXIT_SUCCESS;
+    return (errored || stats.failures || !div_iter_passed) ? EXIT_FAILURE : EXIT_SUCCESS;
 }
