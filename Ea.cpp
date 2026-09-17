@@ -229,13 +229,18 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type)
   {
     ot(";@ Get extension word into r3:\n");
     ot("  ldrh r3,[r4],#2 ;@ ($Disp,PC,Rn)\n"); pc_dirty=1;
-    ot("  mov r2,r3,lsr #10\n");
-    ot("  tst r3,#0x0800 ;@ Is Rn Word or Long\n");
-    ot("  and r2,r2,#0x3c ;@ r2=Index of Rn\n");
-    ot("  ldreqsh r2,[r7,r2] ;@ r2=Rn.w\n");
-    ot("  ldrne   r2,[r7,r2] ;@ r2=Rn.l\n");
-    ot("  mov r0,r3,asl #24 ;@ r0=Get 8-bit signed Disp\n");
-    ot("  add r3,r2,r0,asr #24 ;@ r3=Disp+Rn\n");
+    ot("  movs r2,r3,lsr #12 ;@ r2=Index of Rn, carry set if Long\n");
+    ot("  ldr r2,[r7,r2,lsl #2] ;@ r2=Rn.l\n");
+#if HAVE_ARMv6
+    ot("  sxtb r3,r3 ;@ r3=Get 8-bit signed Disp\n");
+    ot("  sxthcc r2,r2 ;@ r2=Rn.w\n");
+    ot("  add r3,r3,r2 ;@ r3=Disp+Rn\n");
+#else
+    ot("  mov r3,r3,asl #24 ;@ r3=Get 8-bit signed Disp\n");
+    ot("  movcc r2,r2,asl #16 ;@ r2=Rn.w\n");
+    ot("  movcc r2,r2,asr #16\n");
+    ot("  add r3,r2,r3,asr #24 ;@ r3=Disp+Rn\n");
+#endif
 
     EaCalcReg(2,8,mask,1,0);
     ot("  ldr r2,[r7,r2,lsl #2]\n");
@@ -276,13 +281,18 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type)
     ot("  ldrh r3,[r4] ;@ Get extension word\n");
     ot("  sub r0,r4,r0 ;@ r0=PC\n");
     ot("  add r4,r4,#2\n"); pc_dirty=1;
-    ot("  mov r2,r3,lsr #10\n");
-    ot("  tst r3,#0x0800 ;@ Is Rn Word or Long\n");
-    ot("  and r2,r2,#0x3c ;@ r2=Index of Rn\n");
-    ot("  ldreqsh r2,[r7,r2] ;@ r2=Rn.w\n");
-    ot("  ldrne   r2,[r7,r2] ;@ r2=Rn.l\n");
+    ot("  movs r2,r3,lsr #12 ;@ r2=Index of Rn, carry set if Long\n");
+    ot("  ldr r2,[r7,r2,lsl #2] ;@ r2=Rn.l\n");
+#if HAVE_ARMv6
+    ot("  sxtb r3,r3 ;@ r3=Get 8-bit signed Disp\n");
+    ot("  sxthcc r2,r2 ;@ r2=Rn.w\n");
+    ot("  add r2,r2,r3 ;@ r2=Disp+Rn\n");
+#else
     ot("  mov r3,r3,asl #24 ;@ r3=Get 8-bit signed Disp\n");
+    ot("  movcc r2,r2,asl #16 ;@ r2=Rn.w\n");
+    ot("  movcc r2,r2,asr #16\n");
     ot("  add r2,r2,r3,asr #24 ;@ r2=Disp+Rn\n");
+#endif
     ot("  add r%d,r2,r0 ;@ r%d=Disp+PC+Rn\n",a,a);
     Cycles+=size<2 ? 10:14; // Extra cycles
     return 0;
