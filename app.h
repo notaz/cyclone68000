@@ -21,6 +21,13 @@
 #include CONFIG_FILE
 
 // Enforce ARM architecture hierarchy even if a custom config file doesn't
+#ifndef HAVE_ARMv6T2
+#define HAVE_ARMv6T2 0
+#elif HAVE_ARMv6T2
+#undef HAVE_ARMv6
+#define HAVE_ARMv6 1
+#endif
+
 #ifndef HAVE_ARMv6
 #define HAVE_ARMv6 0
 #elif HAVE_ARMv6
@@ -51,11 +58,11 @@ extern int g_lea_cycle_table[];
 extern int g_pea_cycle_table[];
 extern int g_movem_cycle_table[];
 int Ea_add_ns(int *tab, int ea); // add nonstandard EA cycles
-int EaCalc(int a,int mask,int ea,int size,EaRWType type=earwt_sign_extend); // 6
-int EaRead(int a,int v,int ea,int size,int mask,EaRWType type=earwt_sign_extend,int set_nz=0); // 8
-int EaCalcRead(int r_ea,int r,int ea,int size,int mask,EaRWType type=earwt_sign_extend,int set_nz=0); // 7
+int EaCalc(int a,int mask,int ea,int size,EaRWType type=earwt_sign_extend,int set_nz=0,int force_shift=0); // 7
+int EaRead(int a,int v,int ea,int size,int mask,EaRWType type=earwt_sign_extend,int set_nz=0,int force_shift=0); // 8
+int EaCalcRead(int r_ea,int r,int ea,int size,int mask,EaRWType type=earwt_sign_extend,int set_nz=0,int force_shift=0); // 8
 int EaCanRead(int ea,int size);
-int EaWrite(int a,int v,int ea,int size,int mask,EaRWType type=earwt_sign_extend);
+int EaWrite(int a,int v,int ea,int size,int mask,EaRWType type=earwt_sign_extend,int force_shift=0);
 int EaCanWrite(int ea);
 int EaAn(int ea);
 

@@ -20,6 +20,8 @@ int OpArith(int op)
   int sea=0,tea=0;
   int use=0;
   const char *shiftstr="";
+  EaRWType stype=earwt_msb_dont_care;
+  EaRWType ttype=earwt_shifted_up;
 
   // Get source and target EA
   type=(op>>9)&7; if (type==4 || type>=7) return 1;
@@ -36,12 +38,24 @@ int OpArith(int op)
 
   OpStart(op, sea, tea); Cycles=4;
 
-  // imm must be read first
-  EaCalcRead(-1,10,sea,size,0,earwt_msb_dont_care);
-  EaCalcRead((type!=6)?11:-1,0,tea,size,0x003f,earwt_msb_dont_care);
+  // Avoid sign-extended load optimizations for bytes,
+  // which would introduce a separate register index shift
+  if (size) {
+    if (tea<0x10&&(type<2||type==5)) {
+      // Do register-based bitwise ops with sign extension
+      stype=earwt_sign_extend;
+      ttype=earwt_sign_extend;
+    }
+  }
 
-  if (size<2) shiftstr=(char *)(size?",asl #16":",asl #24");
-  if (size<2) ot("  mov r10,r10,asl #%i\n",size?16:24);
+  // imm must be read first
+  EaCalcRead(-1,10,sea,size,0,stype);
+  EaCalcRead((type!=6)?11:-1,0,tea,size,0x003f,stype);
+
+  if (size<2&&ttype==earwt_shifted_up) {
+    shiftstr=size?",asl #16":",asl #24";
+    ot("  mov r10,r10%s\n",shiftstr);
+  }
 
   ot(";@ Do arithmetic:\n");
 
@@ -61,7 +75,7 @@ int OpArith(int op)
 
   if (type!=6)
   {
-    EaWrite(11, 1, tea,size,0x003f,earwt_shifted_up);
+    EaWrite(11, 1, tea,size,0x003f,ttype);
   }
 
   // Correct cycles:
@@ -151,8 +165,11 @@ int OpArithReg(int op)
 {
   int use=0;
   int type=0,size=0,dir=0,rea=0,ea=0;
-  const char *asl="";
+  const char *shift="";
   const char *strop=0;
+  EaRWType reg_rtype=earwt_msb_dont_care;
+  EaRWType rtype=earwt_msb_dont_care;
+  EaRWType wtype=earwt_shifted_up;
 
   type=(op>>12)&5;
   rea =(op>> 9)&7;
@@ -173,30 +190,56 @@ int OpArithReg(int op)
 
   OpStart(op,ea); Cycles=4;
 
-  EaCalcRead(dir?11:-1,0,ea,size,0x003f,earwt_msb_dont_care);
+  // Avoid sign-extended load optimizations for bytes,
+  // which would introduce a separate register index shift
+  if (size) {
+    if ((ea<0x10||ea==0x3c)&&!(type&1)) {
+      // Do register/imm-based bitwise operations on sign-extended values
+      reg_rtype=earwt_sign_extend;
+      rtype=earwt_sign_extend;
+      wtype=earwt_sign_extend;
+    } else if (!dir&&!(type&1)) {
+      // Do other register-destination bitwise operations on sign-extended values,
+      // but without auto-extending the source
+      reg_rtype=earwt_sign_extend;
+      wtype=earwt_sign_extend;
+    }
+  }
 
-  EaCalcRead(dir?-1:11,1,rea,size,0x0e00,earwt_msb_dont_care);
+  EaCalcRead(dir?11:-1,0,ea,size,0x003f,rtype);
+
+  EaCalcRead(dir?-1:11,1,rea,size,0x0e00,reg_rtype);
 
   ot(";@ Do arithmetic:\n");
   if (type==0) strop = "orrs";
-  if (type==1) strop = (char *) (dir ? "subs" : "rsbs");
+  if (type==1) strop = dir ? "subs" : "rsbs";
   if (type==4) strop = "ands";
   if (type==5) strop = "adds";
 
-  if (size==0) asl=",asl #24";
-  if (size==1) asl=",asl #16";
-
-  if (size<2) ot("  mov r0,r0%s\n",asl);
-  ot("  %s r1,r0,r1%s\n",strop,asl);
+  if (size<2) {
+    if (wtype==earwt_shifted_up) {
+      shift=size?",asl #16":",asl #24";
+      ot("  mov r0,r0%s\n",shift);
+    } else if (wtype==earwt_sign_extend&&rtype==earwt_msb_dont_care) {
+#if HAVE_ARMv6
+      SignExtend(0,0,size);
+#else
+      shift=size?",asl #16":",asl #24";
+      ot("  mov r0,r0%s\n",shift);
+      shift=size?",asr #16":",asr #24";
+#endif
+    }
+  }
+  if (wtype==earwt_shifted_up) ot("  %s r1,r0,r1%s\n",strop,shift);
+  else                         ot("  %s r1,r1,r0%s\n",strop,shift);
 
   if (type&1) OpGetFlags(type==1,type&1); // add/subtract
   else        OpGetFlagsNZ(1);
   ot("\n");
 
   ot(";@ Save result:\n");
-  if (size<2) ot("  mov r1,r1,asr #%d\n",size?16:24);
-  if (dir) EaWrite(11, 1, ea,size,0x003f,earwt_msb_dont_care);
-  else     EaWrite(11, 1,rea,size,0x0e00,earwt_msb_dont_care);
+  if (dir) EaWrite(11, 1, ea,size,0x003f,wtype);
+  else     EaWrite(11, 1,rea,size,0x0e00,wtype);
 
   if(rea==ea) {
     if(ea<8) Cycles=(size>=2)?8:4; else Cycles+=(size>=2)?26:14;
@@ -307,15 +350,12 @@ int OpMul(int op)
   if(type) Cycles=38;
   else     Cycles=sign?16:10;
 
-  EaCalcRead(-1,0,ea,1,0x003f,earwt_msb_dont_care);
-
-  EaCalc(11,0x0e00,rea, 2);
-  EaRead(11,     2,rea, 2,0x0e00);
-
-  ot("  movs r1,r0,asl #16\n");
-
   if (type==0) // div
   {
+    EaCalcRead(-1,0, ea,1,0x003f,earwt_msb_dont_care);
+    EaCalcRead(11,2,rea,2,0x0e00);
+
+    ot("  movs r1,r0,asl #16\n");
     // the manual says C is always cleared, but neither Musashi nor FAME do that
     //ot("  bic r10,r10,#0x20000000 ;@ always clear C\n");
     ot("  beq divzero%.4x ;@ division by zero\n",op);
@@ -359,21 +399,21 @@ int OpMul(int op)
       ot("  subcs r5,r5,#2\n");
       ot("\n");
 
-      ot("  movs r1,r3,lsl #16 ;@ set flags based on quotient\n");
-      OpGetFlagsNZ(1);
+      ot("  movs r0,r3,lsl #16 ;@ set flags based on quotient\n");
+      OpGetFlagsNZ(0);
       // signed overflow check
-      ot("  cmp r3,r1,asr #16 ;@ signed overflow?\n");
+      ot("  cmp r3,r0,asr #16 ;@ signed overflow?\n");
       ot("  movne r10,#0x90000000 ;@ set overflow/negative flags\n");
       ot("  bne endofop%.4x ;@ overflow!\n",op);
       ot("\n");
 
-      ot("  mov r1,r1,lsr #16\n");
-      ot("  orr r1,r1,r2,lsl #16 ;@ Insert remainder\n");
+      ot("  mov r0,r0,lsr #16\n");
+      ot("  orr r0,r0,r2,lsl #16 ;@ Insert remainder\n");
     }
     else
     {
-      ot("  mov r1,r2,ror #16 ;@ swap quotient and remainder\n");
-      ot("  movs r2,r1,lsl #16 ;@ set flags based on quotient\n");
+      ot("  mov r0,r2,ror #16 ;@ swap quotient and remainder\n");
+      ot("  movs r2,r0,lsl #16 ;@ set flags based on quotient\n");
       OpGetFlagsNZ(2);
     }
     ot("\n");
@@ -381,34 +421,48 @@ int OpMul(int op)
 
   if (type==1)
   {
-    ot(";@ Calculate cycles needed: 2*(#bits set in multiplier engine mask)\n");
-    if (sign) ot("  eor r0,r1,r1,lsl #1\n");
-    ot("  mov r12,#0x0F000000 ;@ count top 16 bits, the O(1) way\n");
-    ot("  orr r12,r12,r12,lsr #8 ;@ r12 = 0x0F0F0000\n");
-    ot("  eor r10,r12,r12,lsl #2 ;@ r10 = 0x33330000\n");
-    ot("  eor r3,r10,r10,lsl #1  ;@ r3  = 0x55550000\n");
-    ot("  and r3,r3,r%d,lsr #1\n",sign?0:1);
-    ot("  sub r0,r%d,r3\n",sign?0:1);
-    ot("  and r3,r10,r0,lsr #2\n");
-    ot("  and r0,r10,r0\n");
-    ot("  add r0,r0,r3\n");
-    ot("  add r0,r0,r0,lsr #4\n");
-    ot("  and r0,r12,r0\n");
-    ot("  add r0,r0,r0,lsl #8\n");
-    ot("  sub r5,r5,r0,lsr #23 ;@ cycles -= 2*bitcount(mask)\n");
+    EaRWType rtype=sign?earwt_sign_extend:earwt_zero_extend;
 
-    ot(";@ Get 16-bit signs right:\n");
-    ot("  mov r0,r1,%s #16\n",sign?"asr":"lsr");
-    if (sign) SignExtend(2,2,1);
-    else      ZeroExtend(2,2,1);
+    EaCalcRead(-1,0, ea,1,0x003f,rtype);
+    EaCalcRead(11,2,rea,1,0x0e00,rtype,0,1);
+    
+    ot(";@ Calculate cycles needed: 2*(#bits set in multiplier engine mask)\n");
+    if (sign) ot("  eor r1,r0,r0,lsl #1 ;@ zeros upper 16 bits\n");
+    ot(";@ count bottom 16 bits, the O(1) way\n");
+    // use the bit-trio method (HAKMEM 169) which needs fewer immediates
+ #if HAVE_ARMv6T2
+    ot("  movw r12,#0x9249 ;@ r12 = 0o111111\n");
+    ot("  movt r12,#0x38E3 ;@ r12 |= 0o070707 << 15\n");
+    ot("  and r3,r12,r%d,lsr #2\n",sign?1:0);
+    ot("  bic r10,r%d,r12\n",sign?1:0);
+    ot("  sub r1,r%d,r3\n",sign?1:0);
+    ot("  sub r1,r1,r10,lsr #1\n");
+ #else
+    ot("  mov r12,#0x38C00000\n");
+    ot("  orr r12,r12,#0x00238000 ;@ r12 = 0o070707 << 15\n");
+    ot("  eor r10,r12,r12,lsl #1  ;@ r10 = 0o111111 << 15\n");
+    ot("  and r3,r10,r%d,lsl #13\n",sign?1:0);
+    ot("  bic r10,r%d,r10,lsr #15\n",sign?1:0);
+    ot("  rsb r1,r3,r%d,lsl #15\n",sign?1:0);
+    ot("  sub r1,r1,r10,lsl #14\n");
+ #endif
+    ot("  add r1,r1,r1,lsr #3\n");
+ #if HAVE_ARMv6T2
+    ot("  and r1,r12,r1,lsl #15\n");
+ #else
+    ot("  and r1,r12,r1\n");
+ #endif
+    ot("  add r1,r1,r1,lsr #6\n");
+    ot("  add r1,r1,r1,lsl #12\n");
+    ot("  sub r5,r5,r1,lsr #26 ;@ cycles -= 2*bitcount(mask)\n");
     ot("\n");
 
-    ot("  muls r1,r2,r0\n");
-    OpGetFlagsNZ(1);
+    ot("  muls r0,r2,r0\n");
+    OpGetFlagsNZ(0);
   }
   ot("\n");
 
-  EaWrite(11, 1,rea, 2,0x0e00,earwt_shifted_up);
+  EaWrite(11, 0,rea, 2,0x0e00,earwt_msb_dont_care,type==1);
 
   if (type==0) ot("endofop%.4x%s\n",op,ms?"":":");
   opend_op_changes_cycles=1;
@@ -569,6 +623,7 @@ int OpAritha(int op)
   int use=0;
   int type=0,size=0,sea=0,dea=0;
   const char *asr="";
+  EaRWType stype=earwt_msb_dont_care;
 
   // Suba/Cmpa/Adda/(invalid):
   type=(op>>13)&3; if (type>=3) return 1;
@@ -585,26 +640,26 @@ int OpAritha(int op)
   if (op!=use) { OpUse(op,use); return 0; } // Use existing handler
 
   OpStart(op,sea); Cycles=(size==2)?6:8;
-  if(size==2&&(sea<0x10||sea==0x3c)) Cycles+=2;
+  if(sea<0x10||sea==0x3c) {
+    if (size==2) Cycles+=2;
+    // Only use sign-extended load optimization for immediates,
+    // to avoid a separate register index shift
+    if (sea==0x3c) stype=earwt_sign_extend;
+  }
   if(type==1) Cycles=6;
 
   // EA calculation order defines how situations like  suba.w (A0)+, A0 get handled.
-  // different emus act differently in this situation, I couldn't fugure which is right behaviour.
-  //if (type == 1)
-  {
-    EaCalcRead(-1,0,sea,size,0x003f,earwt_msb_dont_care);
-    EaCalcRead(type!=1?11:-1,1,dea,2,0x0e00,earwt_msb_dont_care);
-  }
-#if 0
-  else
-  {
-    EaCalcRead(type!=1?11:-1,1,dea,2,0x0e00,earwt_msb_dont_care);
-    EaCalcRead(-1,0,sea,size,0x003f,earwt_msb_dont_care);
-  }
-#endif
+  EaCalcRead(-1,0,sea,size,0x003f,stype);
+  EaCalcRead(type!=1?11:-1,1,dea,2,0x0e00,earwt_msb_dont_care);
 
-  if (size<2) ot("  mov r0,r0,asl #%d\n\n",size?16:24);
-  if (size<2) asr=(char *)(size?",asr #16":",asr #24");
+  if (stype!=earwt_sign_extend) {
+#if HAVE_ARMv6
+    SignExtend(0,0,size);
+#else
+    if (size<2) ot("  mov r0,r0,asl #%d\n\n",size?16:24);
+    if (size<2) asr=size?",asr #16":",asr #24";
+#endif
+  }
 
   if (type==0) ot("  sub r1,r1,r0%s\n",asr);
   if (type==1) ot("  cmp r1,r0%s ;@ Defines NZCV\n",asr);
@@ -663,7 +718,7 @@ int OpAddx(int op)
     if (size<2) ot("  mov r6,r6,asl #%d\n\n",size?16:24);
   }
 
-  if (size<2) asl=(char *)(size?",asl #16":",asl #24");
+  if (size<2) asl=size?",asl #16":",asl #24";
 
   ot(";@ Do arithmetic:\n");
   GetXBit(type==0);
@@ -703,6 +758,8 @@ int OpCmpEor(int op)
   int rea=0,eor=0;
   int size=0,ea=0,use=0;
   const char *asl="";
+  EaRWType rtype=earwt_msb_dont_care;
+  EaRWType wtype=earwt_shifted_up;
 
   // Get EA and register EA
   rea=(op>>9)&7;
@@ -729,14 +786,26 @@ int OpCmpEor(int op)
     if(size>=2)  Cycles+=2;
   }
 
+  // Avoid sign-extended load optimizations for bytes,
+  // which would introduce a separate register index shift
+  if (size) {
+    if (eor&&ea<0x10) {
+      // Do register-based bitwise operations on sign-extended values
+      rtype=earwt_sign_extend;
+      wtype=earwt_sign_extend;
+    }
+  }
+
   ot(";@ Get EA into r11 and value into r0:\n");
-  EaCalcRead(eor?11:-1,0,ea,size,0x003f,earwt_msb_dont_care);
+  EaCalcRead(eor?11:-1,0,ea,size,0x003f,rtype);
 
   ot(";@ Get register operand into r1:\n");
-  EaCalcRead(-1,1,rea,size,0x0e00,earwt_msb_dont_care);
+  EaCalcRead(-1,1,rea,size,0x0e00,rtype);
 
-  if (size<2) ot("  mov r0,r0,asl #%d\n\n",size?16:24);
-  if (size<2) asl=(char *)(size?",asl #16":",asl #24");
+  if (size<2&&wtype==earwt_shifted_up) {
+    asl=size?",asl #16":",asl #24";
+    ot("  mov r0,r0%s\n\n",asl);
+  }
 
   ot(";@ Do arithmetic:\n");
   if (eor)
@@ -751,7 +820,7 @@ int OpCmpEor(int op)
   }
   ot("\n");
 
-  if (eor) EaWrite(11, 1,ea,size,0x003f,earwt_shifted_up);
+  if (eor) EaWrite(11, 1,ea,size,0x003f,wtype);
 
   OpEnd(ea);
   return 0;
@@ -782,7 +851,7 @@ int OpCmpm(int op)
   ot(";@ Get dst operand into r0:\n");
   EaCalcRead(-1,0,dea,size,0x0e00,earwt_msb_dont_care);
 
-  if (size<2) asl=(char *)(size?",asl #16":",asl #24");
+  if (size<2) asl=size?",asl #16":",asl #24";
 
   ot("  rsbs r0,r11,r0%s\n",asl);
   OpGetFlags(1,0); // Cmp like subtract

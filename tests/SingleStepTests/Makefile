@@ -1,3 +1,7 @@
+ifeq ($(HAVE_ARMv6T2),1)
+ARCH = armv6t2
+CPU = cortex-a7 # arm1156 not supported in qemu...
+else
 ifeq ($(HAVE_ARMv6),1)
 ARCH = armv6
 CPU = arm11mpcore
@@ -8,6 +12,7 @@ CPU = arm946
 else
 ARCH = armv4t
 CPU = arm946 # arm920 not supported in qemu...
+endif
 endif
 endif
 

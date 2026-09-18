@@ -8,6 +8,9 @@ endif
 ifdef HAVE_ARMv6
 CFLAGS += -DHAVE_ARMv6=$(HAVE_ARMv6)
 endif
+ifdef HAVE_ARMv6T2
+CFLAGS += -DHAVE_ARMv6T2=$(HAVE_ARMv6T2)
+endif
 CXXFLAGS += $(CFLAGS)
 
 OBJS = Main.o Ea.o OpAny.o OpArith.o OpBranch.o OpLogic.o OpMove.o Disa/Disa.o
