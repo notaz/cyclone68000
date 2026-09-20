@@ -148,7 +148,11 @@ int OpGetFlags(int subtract,int xbit,int specialz)
 {
   if (specialz) ot("  orr r2,r10,#0xb0000000 ;@ for old Z\n");
 
+#if USE_UAL_SYNTAX
+  ot("  mrs r10,apsr ;@ r10=flags\n");
+#else
   ot("  mrs r10,cpsr ;@ r10=flags\n");
+#endif
 
   if (specialz) ot("  andeq r10,r10,r2 ;@ fix Z\n");
 
