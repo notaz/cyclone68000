@@ -282,8 +282,8 @@ static void PrintFramework()
   ot("unc_loop%s\n", ms?"":":");
   ot("  ldrh r1,[r0],#2\n");
   ot("  and r2,r1,#0xf\n");
-  ot("  bic r1,r1,#0xf\n");
-  ot("  ldr r1,[r3,r1,lsr #2] ;@ r1=handler\n");
+  ot("  mov r1,r1,lsr #4\n");
+  ot("  ldr r1,[r3,r1,lsl #2] ;@ r1=handler\n");
   ot("  cmp r2,#0xf\n");
   ot("  addeq r2,r2,#1 ;@ 0xf is really 0x10\n");
   ot("  tst r2,r2\n");
@@ -441,10 +441,14 @@ static void PrintFramework()
   ot("  mov r2,r1,lsl #25\n");
   ot("  str r2,[r0,#0x4c] ;@ the X flag\n");
   ot("  bic r2,r1,#0xf3\n");
-  ot("  tst r1,#1\n");
-  ot("  orrne r2,r2,#2\n");
-  ot("  tst r1,#2\n");
-  ot("  orrne r2,r2,#1\n");
+#if HAVE_ARMv6T2
+  ot("  rbit r1,r1\n");
+  ot("  orr r2,r2,r1,lsr #30\n");
+#else
+  ot("  movs r1,r1,lsl #31\n");
+  ot("  orrmi r2,r2,#2\n");
+  ot("  orrcs r2,r2,#1\n");
+#endif
   ot("  strb r2,[r0,#0x46] ;@ flags\n");
   ot("  bx lr\n");
   ot("\n");
@@ -453,10 +457,14 @@ static void PrintFramework()
   ot("CycloneGetSr%s\n", ms?"":":");
   ot("  ldrb r1,[r0,#0x46] ;@ flags\n");
   ot("  bic r2,r1,#0xf3\n");
-  ot("  tst r1,#1\n");
-  ot("  orrne r2,r2,#2\n");
-  ot("  tst r1,#2\n");
-  ot("  orrne r2,r2,#1\n");
+#if HAVE_ARMv6T2
+  ot("  rbit r1,r1\n");
+  ot("  orr r2,r2,r1,lsr #30\n");
+#else
+  ot("  movs r1,r1,lsl #31\n");
+  ot("  orrmi r2,r2,#2\n");
+  ot("  orrcs r2,r2,#1\n");
+#endif
   ot("  ldr r1,[r0,#0x4c] ;@ the X flag\n");
   ot("  tst r1,#0x20000000\n");
   ot("  orrne r2,r2,#0x10\n");
@@ -933,13 +941,10 @@ static void PrintFramework()
   ot("  beq TraceDisabled\n");
   ot(";@ trace exception\n");
 #if EMULATE_ADDRESS_ERRORS_JUMP || EMULATE_ADDRESS_ERRORS_IO
-  ot("  ldr r1,[r7,#0x58]\n");
-  ot("  mov r0,#9\n");
-  ot("  orr r1,r1,#4 ;@ set activity bit: 'not processing instruction'\n");
-  ot("  str r1,[r7,#0x58]\n");
-#else
-  ot("  mov r0,#9\n");
+  ot("  orr r2,r2,#4 ;@ set activity bit: 'not processing instruction'\n");
+  ot("  str r2,[r7,#0x58]\n");
 #endif
+  ot("  mov r0,#9\n");
   ot("  bl Exception\n");
   ot("  ldrh r8,[r4],#2 ;@ Fetch next opcode\n");
   ot("  subs r5,r5,#34 ;@ Subtract cycles\n");
@@ -1188,7 +1193,7 @@ static void PrintJumpTable()
   ot(";@ -------------------------- Jump Table --------------------------\n");
 
   // space for decompressed table
-  ot(ms?"  area |.data|, data\n":"  .data\n  .align 4\n\n");
+  ot(ms?"  area |.data|, data\n":"  .data\n  .balign 4\n\n");
 
 #if COMPRESS_JUMPTABLE
     int handlers=0,reps=0,*indexes,ip,u,out;
@@ -1336,7 +1341,7 @@ static int CycloneMake()
   for(i=0xa000; i<0xb000;  i++) CyJump[i] = -2; // a-line emulation
   for(i=0xf000; i<0x10000; i++) CyJump[i] = -3; // f-line emulation
 
-  ot(ms?"  area |.text|, code\n":"  .text\n  .align 4\n\n");
+  ot(ms?"  area |.text|, code\n":"  .text\n  .balign 4\n\n");
   DeclareGlobalFunc("CycloneInitJT");
   DeclareGlobalFunc("CycloneResetJT");
   DeclareGlobalFunc("CycloneRun");

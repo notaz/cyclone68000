@@ -262,27 +262,31 @@ int OpNeg(int op)
   OpStart(op,ea); Cycles=size<2?4:6;
   if(ea >= 0x10)  Cycles*=2;
 
-  if (type==1) EaCalc (11,0x003f,ea,size,earwt_msb_dont_care);
+  if (type==1)      EaCalc (11,0x003f,ea,size,earwt_msb_dont_care); // Don't need to read for 'clr' (or do we, for a dummy read?)
 #if HAVE_ARMv6
   else if (type==3) EaCalcRead (11,0,ea,size,0x003f,earwt_sign_extend);
 #endif
-  else EaCalcRead (11,0,ea,size,0x003f,earwt_msb_dont_care); // Don't need to read for 'clr' (or do we, for a dummy read?)
+  else              EaCalcRead (11,0,ea,size,0x003f,earwt_msb_dont_care);
 
   if (type==0)
   {
     ot(";@ Negx:\n");
-    GetXBit(1);
-    if(size!=2) ot("  mov r0,r0,asl #%i\n",size?16:24);
-    ot("  rscs r1,r0,#0 ;@ do arithmetic\n");
+    ot("  ldr r2,[r7,#0x4c] ;@ X bit\n");
     ot("  orr r3,r10,#0xb0000000 ;@ for old Z\n");
-    OpGetFlags(1,1,0);
-    if(size!=2) {
-      ot("  movs r1,r1,lsr #%i\n",size?16:24);
-      ot("  orreq r10,r10,#0x40000000 ;@ possily missed Z\n");
+    if (size<2) {
+      ot("  mov r0,r0,asl #%i\n",size?16:24);
+      ot("  mvns r2,r2,lsr #30 ;@ Get X bit into Carry, set upper bits of r2\n");
     }
-    ot("  andeq r10,r10,r3 ;@ fix Z\n");
+    else
+      ot("  movs r2,r2,lsl #3 ;@ Get X bit into Carry\n");
+    ot("  sbcs r1,r0,#0 ;@ Defines CV\n");
+    if (size<2)
+      ot("  orr r1,r1,r2,lsr #%i ;@ Set lower bits of result\n",(size==0)?8:16);
+    ot("  mvns r1,r1 ;@ Defines NZ\n");
+    OpGetFlags(0,1,0); // don't invert carry, save X bit
+    ot("  and r10,r10,r3 ;@ fix Z\n");
     ot("\n");
-    wtype=earwt_zero_extend;
+    wtype=earwt_shifted_up;
   }
 
   if (type==1)
@@ -342,13 +346,12 @@ int OpSwap(int op)
 
   OpStart(op); Cycles=4;
 
-  EaCalc (11,0x0007,ea,2,earwt_shifted_up);
-  EaRead (11,     0,ea,2,0x0007,earwt_shifted_up);
+  EaCalcRead(11,0,ea,2,0x0007,earwt_shifted_up);
 
   ot("  movs r1,r0,ror #16\n");
   OpGetFlagsNZ(1);
 
-  EaWrite(11,     1,8,2,0x0007,earwt_shifted_up);
+  EaWrite(11,1,ea,2,0x0007,earwt_shifted_up);
 
   OpEnd();
 
@@ -373,8 +376,7 @@ int OpTst(int op)
 
   OpStart(op,sea); Cycles=4;
 
-  EaCalc (0,0x003f,sea,size,earwt_shifted_up);
-  EaRead (0,     0,sea,size,0x003f,earwt_shifted_up,1);
+  EaCalcRead(-1,0,sea,size,0x003f,earwt_shifted_up,1);
 
   OpGetFlagsNZ(0);
   ot("\n");
@@ -460,6 +462,17 @@ int OpSet(int op)
   return 0;
 }
 
+// Emit the register-based count adjustment for a Asr/Lsr/Roxr/Ror opcode
+// Does not affect flags
+static void EmitAsrCycles(int usereg)
+{
+  if (usereg)
+  {
+    ot("  and r2,r2,#63 ;@ Mask register shift amount\n");
+  }
+  ot("  sub r5,r5,r2,asl #1 ;@ Take 2*n cycles\n\n");
+}
+
 // Emit a Asr/Lsr/Roxr/Ror opcode
 static int EmitAsr(int op,int type,int dir,int count,int size,int usereg,EaRWType eatype)
 {
@@ -467,37 +480,30 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg,EaRWTyp
   int wide=8<<size;
   int shift=32-wide;
 
-  if (count>=1) sprintf(pct,"#%d",count); // Fixed count
-
   if (usereg)
   {
     ot(";@ Use Dn for count:\n");
-#if HAVE_ARMv6T2
-    // Offset shifted left by 2 has reduced latency on some newer CPUs
-    ot("  ubfx r2,r8,#9,#3\n");
-    ot("  ldr r2,[r7,r2,lsl #2]\n");
-#else
-    ot("  and r2,r8,#0x0e00\n");
-    ot("  ldr r2,[r7,r2,lsr #7]\n");
-#endif
-    ot("  and r2,r2,#63\n");
-    ot("\n");
+    EaCalcRead(-1,2,0,2,0x0e00);
+    // Masking is deferred until EmitAsrCycles() to avoid interlocks
     strcpy(pct,"r2");
   }
-  else if (count<0)
+  else if (count < 0)
   {
 #if HAVE_ARMv6T2
-    ot("  ubfx r2,r8,#9,#3 ;@ Get 'n'\n");
+    ot("  ubfx r2,r8,#9,#3 ;@ Get 'n'\n\n");
 #else
     ot("  mov r2,r8,lsr #9 ;@ Get 'n'\n");
     ot("  and r2,r2,#7\n\n");
 #endif
     strcpy(pct,"r2");
   }
-
-  // Take 2*n cycles:
-  if (count<0) ot("  sub r5,r5,r2,asl #1 ;@ Take 2*n cycles\n\n");
-  else Cycles+=count<<1;
+  else
+  {
+    // Fixed count
+    sprintf(pct,"#%d",count); 
+    // Take 2*n cycles:
+    Cycles+=count<<1;
+  }
 
   if (type<2)
   {
@@ -519,6 +525,8 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg,EaRWTyp
       ot("  adds r3,r3,#0 ;@ clear C and V, avoiding false register dependency on r0\n");
     else if (count!=1)
       ot("  adds r3,r0,#0 ;@ clear C and V, also save old value for V flag calculation\n");
+
+    if (count<0) EmitAsrCycles(usereg);
 
     ot(";@ Shift register:\n");
     if (asl&&count==1)
@@ -599,6 +607,8 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg,EaRWTyp
 
     ot("  ldr r3,[r7,#0x4c] ;@ X bit\n");
 
+    if (count<0) EmitAsrCycles(usereg);
+
     if (usereg)
     {
       ot(";@ Reduce rotation amount modulo %d:\n",wide+1);
@@ -667,8 +677,10 @@ static int EmitAsr(int op,int type,int dir,int count,int size,int usereg,EaRWTyp
     ot(";@ Rotate register:\n");
     if (!dir && !flags_cleared)
       ot("  adds r1,r1,#0 ;@ first clear V and C\n"); // ARM does not clear C if rot count is 0
+  
     if (count<0)
     {
+      EmitAsrCycles(usereg);
       if (dir) {
         if (usereg) ot("  rsbs %s,%s,#0 ;@ clears V flag\n",pct,pct);
         else        ot("  rsb %s,%s,#33 ;@ rotate left by N-1, get carry for N\n",pct,pct);
@@ -840,8 +852,7 @@ int OpTas(int op, int gen_special)
   Cycles=4;
   if(ea>=8) Cycles+=6;
 
-  EaCalc (11,0x003f,ea,0,earwt_shifted_up);
-  EaRead (11,     1,ea,0,0x003f,earwt_shifted_up,1);
+  EaCalcRead(11,1,ea,0,0x003f,earwt_shifted_up,1);
 
   OpGetFlagsNZ(1);
   ot("\n");
@@ -852,7 +863,7 @@ int OpTas(int op, int gen_special)
 #endif
     ot("  orr r1,r1,#0x80000000 ;@ set bit7\n");
 
-    EaWrite(11,   1,ea,0,0x003f,earwt_shifted_up);
+    EaWrite(11,1,ea,0,0x003f,earwt_shifted_up);
 #if CYCLONE_FOR_GENESIS
   }
 #endif

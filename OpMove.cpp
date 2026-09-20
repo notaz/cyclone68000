@@ -428,10 +428,20 @@ int OpMovem(int op)
 #endif
 
   ot("\n");
+#if HAVE_ARMv6T2
+  ot("  rbit r11,r11\n");
+  ot("Movemloop%.4x%s\n",op, ms?"":":");
+  ot("  clz r0,r11\n");
+  ot("  add r0,r0,#1\n");
+  if (decr) ot("  sub r4,r4,r0,lsl #2 ;@ r4=Next Register\n");
+  else      ot("  add r4,r4,r0,lsl #2 ;@ r4=Next Register\n");
+  ot("  mov r11,r11,lsl r0\n");
+#else
   ot("Movemloop%.4x%s\n",op, ms?"":":");
   ot("  add r4,r4,#%d ;@ r4=Next Register\n",decr?-4:4);
   ot("  movs r11,r11,lsr #1\n");
   ot("  bcc Movemloop%.4x\n",op);
+#endif
   ot("\n");
 
   if (decr) ot("  sub r6,r6,#%d ;@ Pre-decrement address\n",1<<size);
@@ -520,8 +530,7 @@ int OpMoveUsp(int op)
   }
   else
   {
-    EaCalc (0,0x000f,8,2);
-    EaRead (0,     0,8,2,0x000f);
+    EaCalcRead (-1,0,8,2,0x000f);
     ot("  str r0,[r7,#0x48] ;@ Put in USP\n\n");
   }
     
@@ -541,12 +550,11 @@ int OpMoveq(int op)
 
   OpStart(op); Cycles=4;
 
-  ot("  movs r0,r8,asl #24\n");
-  ot("  and r1,r8,#0x0e00\n");
-  ot("  mov r0,r0,asr #24 ;@ Sign extended Quick value\n");
-  OpGetFlagsNZ(0);
-  ot("  str r0,[r7,r1,lsr #7] ;@ Store into Dn\n");
-  ot("\n");
+  ot("  mov r1,r8,asl #24\n");
+  EaCalc(0,0x0e00,0,2);
+  ot("  movs r1,r1,asr #24 ;@ Sign extended Quick value\n");
+  OpGetFlagsNZ(1);
+  EaWrite(0,1,0,2,0x0e00);
 
   OpEnd();
 
@@ -560,7 +568,7 @@ int OpMoveq(int op)
 // 1100ttt1 10001sss  exg as,dt
 int OpExg(int op)
 {
-  int use=0,type=0;
+  int use=0,type=0,tea=0;
 
   type=op&0xf8;
 
@@ -571,16 +579,16 @@ int OpExg(int op)
 
   OpStart(op); Cycles=6;
 
-  ot("  and r2,r8,#0x0e00 ;@ Find T register\n");
-  ot("  and r3,r8,#0x000f ;@ Find S register\n");
-  if (type==0x48) ot("  orr r2,r2,#0x1000 ;@ T is an address register\n");
+  ot(";@ Find T register\n");
+  if (type==0x48) tea=8; // Address register
+  EaCalc (2,0x0e00,tea,2);
+  ot(";@ Find S register\n");
+  EaCalc (3,0x000f,  0,2);
   ot("\n");
-  ot("  ldr r0,[r7,r2,lsr #7] ;@ Get T\n");
-  ot("  ldr r1,[r7,r3,lsl #2] ;@ Get S\n");
-  ot("\n");
-  ot("  str r0,[r7,r3,lsl #2] ;@ T->S\n");
-  ot("  str r1,[r7,r2,lsr #7] ;@ S->T\n");  
-  ot("\n");
+  EaRead (2,0,tea,2,0x0e00);
+  EaRead (3,1,  0,2,0x000f);
+  EaWrite(3,0,  0,2,0x000f);
+  EaWrite(2,1,tea,2,0x0e00);
 
   OpEnd();
   

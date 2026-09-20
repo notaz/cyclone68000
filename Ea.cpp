@@ -103,7 +103,9 @@ int Ea_add_ns(int *tab, int ea)
 // Gets the offset of a register for an ea, and puts it in 'r'
 // Shifted left by 'shift'
 // Doesn't trash anything
-static int EaCalcReg(int r,int ea,int mask,int forceor,int shift,int noshift=0)
+// Returns how much the register should be left-shifted by to reach the shift
+// If 'r' is passed as -1, returns the shift amount without code generation
+static int EaCalcReg(int r,int ea,int mask,int shift,int noshift=0)
 {
   int i=0,low=0,needor=0;
   int lsl=0;
@@ -115,23 +117,45 @@ static int EaCalcReg(int r,int ea,int mask,int forceor,int shift,int noshift=0)
   {
     needor=1; // Need to OR to access A0-7
     if ((g_op>>low)&8) { needor=0; mask|=8<<low; } // Ah - no we don't actually need to or, since the bit is high in r8
-    if (forceor) needor=1; // Special case for 0x30-0x38 EAs ;)
   }
 
-  ot("  and r%d,r8,#0x%.4x\n",r,mask);
-  if (needor) ot("  orr r%d,r%d,#0x%x ;@ A0-7\n",r,r,8<<low);
+#if HAVE_ARMv6T2
+  // Offset shifted left by 2 has reduced latency on some newer CPUs,
+  // so noshift will use a shift of 0 via bitfield extract
+  if (noshift||shift==0)
+  {
+    if (r>=0)
+    {
+      mask>>=low;
+      if (needor) mask&=~8; // Exclude bit 3 so we can add instead of or
+      for (i=mask; i!=0; i>>=1) lsl++;
+      ot("  ubfx r%d,r8,#%d,#%d\n",r,low,lsl);
+      if (needor) ot("  add r%d,r%d,#8 ;@ A0-7\n",r,r);
+    }
+    return shift;
+  }
+#endif
+  if (r>=0)
+  {
+    ot("  and r%d,r8,#0x%.4x\n",r,mask);
+    if (needor) ot("  orr r%d,r%d,#0x%x ;@ A0-7\n",r,r,8<<low);
+  }
 
   // Find out amount to shift left:
   lsl=shift-low;
 
   if (lsl&&!noshift)
   {
-    ot("  mov r%d,r%d,",r,r);
-    if (lsl>0) ot("lsl #%d\n", lsl);
-    else       ot("lsr #%d\n",-lsl);
+    if (r>=0)
+    {
+      ot("  mov r%d,r%d,",r,r);
+      if (lsl>0) ot("lsl #%d\n", lsl);
+      else       ot("lsr #%d\n",-lsl);
+    }
+    lsl=0;
   }
 
-  return 0;
+  return lsl;
 }
 
 // EaCalc - ARM Register 'a' = Effective Address
@@ -140,6 +164,7 @@ static int EaCalcReg(int r,int ea,int mask,int forceor,int shift,int noshift=0)
 // mask shows usable bits in r8
 int EaCalc(int a,int mask,int ea,int size,EaRWType type,int set_nz,int force_shift)
 {
+  int lsl=0;
   char text[32]="";
 
   DisaPc=2; DisaGetEa(text,ea,size); // Get text version of the effective address
@@ -161,7 +186,7 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type,int set_nz,int force_shi
 
     ot(";@ EaCalc : Get register index into r%d:\n",a);
 
-    EaCalcReg(a,ea,mask,0,2,noshift);
+    EaCalcReg(a,ea,mask,2,noshift);
     return 0;
   }
 
@@ -170,7 +195,6 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type,int set_nz,int force_shi
   if (ea<0x28)
   {
     int step=1<<size, strr=a;
-    int low=0,lsl=0,i;
 
     if ((ea&7)==7 && step<2) step=2; // move.b (a7)+ or -(a7) steps by 2 not 1
 
@@ -180,12 +204,9 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type,int set_nz,int force_shi
     }
     else
     {
-      EaCalcReg(2,ea,mask,0,0,1);
-      if(mask)
-        for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
-      lsl=2-low; // Having a lsl #x here saves one opcode
-      if      (lsl>=0) ot("  ldr r%d,[r7,r2,lsl #%i]\n",a,lsl);
-      else if (lsl<0)  ot("  ldr r%d,[r7,r2,lsr #%i]\n",a,-lsl);
+      lsl=EaCalcReg(2,ea,mask,2,1);
+      if (lsl>=0) ot("  ldr r%d,[r7,r2,lsl #%i]\n",a,lsl);
+      else        ot("  ldr r%d,[r7,r2,lsr #%i]\n",a,-lsl);
     }
 
     if ((ea&0x38)==0x18) // (An)+
@@ -205,8 +226,8 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type,int set_nz,int force_shi
       }
       else
       {
-        if      (lsl>=0) ot("  str r%d,[r7,r2,lsl #%i]\n",strr,lsl);
-        else if (lsl<0)  ot("  str r%d,[r7,r2,lsr #%i]\n",strr,-lsl);
+        if (lsl>=0) ot("  str r%d,[r7,r2,lsl #%i]\n",strr,lsl);
+        else        ot("  str r%d,[r7,r2,lsr #%i]\n",strr,-lsl);
       }
     }
 
@@ -218,8 +239,9 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type,int set_nz,int force_shi
   if (ea<0x30) // ($nn,An) (di)
   {
     ot("  ldrsh r0,[r4],#2 ;@ Fetch offset\n"); pc_dirty=1;
-    EaCalcReg(2,8,mask,0,0);
-    ot("  ldr r2,[r7,r2,lsl #2]\n");
+    lsl=EaCalcReg(2,8,mask,2,1);
+    if (lsl>=0) ot("  ldr r2,[r7,r2,lsl #%i]\n",lsl);
+    else        ot("  ldr r2,[r7,r2,lsr #%i]\n",-lsl);
     ot("  add r%d,r0,r2 ;@ Add on offset\n",a);
     Cycles+=size<2 ? 8:12; // Extra cycles
     return 0;
@@ -242,8 +264,9 @@ int EaCalc(int a,int mask,int ea,int size,EaRWType type,int set_nz,int force_shi
     ot("  add r3,r2,r3,asr #24 ;@ r3=Disp+Rn\n");
 #endif
 
-    EaCalcReg(2,8,mask,1,0);
-    ot("  ldr r2,[r7,r2,lsl #2]\n");
+    lsl=EaCalcReg(2,8,mask,2,1);
+    if (lsl>=0) ot("  ldr r2,[r7,r2,lsl #%i]\n",lsl);
+    else        ot("  ldr r2,[r7,r2,lsr #%i]\n",-lsl);
     ot("  add r%d,r2,r3 ;@ r%d=Disp+An+Rn\n",a,a);
     Cycles+=size<2 ? 10:14; // Extra cycles
     return 0;
@@ -362,12 +385,10 @@ int EaRead(int a,int v,int ea,int size,int mask,EaRWType type,int set_nz,int for
 
   if (ea<0x10)
   {
-    int lsl=0,low=0,nsarm=size&3,i;
-    if (!force_shift && (size >= 2 || (size == 0 && type != earwt_sign_extend))) {
-      if (mask)
-        for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
-      lsl=2-low; // Having a lsl #2 here saves one opcode
-    }
+    int lsl=0,noshift=0,nsarm=size&3;
+    const char *suffix;
+    if (!force_shift && (size >= 2 || (size == 0 && type != earwt_sign_extend))) noshift=1;
+    lsl=EaCalcReg(-1,ea,mask,2,noshift);
 
     if (type == earwt_shifted_up || type == earwt_msb_dont_care)
       // use plain ldr
@@ -375,9 +396,10 @@ int EaRead(int a,int v,int ea,int size,int mask,EaRWType type,int set_nz,int for
 
     ot(";@ EaRead : Read register[r%d] into r%d:\n",a,v);
 
-    if      (lsl>0) ot("  ldr%s r%d,[r7,r%d,lsl #%i]\n",Narm[nsarm],v,a,lsl);
-    else if (lsl<0) ot("  ldr%s r%d,[r7,r%d,lsr #%i]\n",Narm[nsarm],v,a,-lsl);
-    else            ot("  ldr%s r%d,[r7,r%d]\n",type==earwt_sign_extend?Sarm[nsarm]:Narm[nsarm],v,a);
+    suffix = type==earwt_sign_extend?Sarm[nsarm]:Narm[nsarm];
+    if      (lsl>0) ot("  ldr%s r%d,[r7,r%d,lsl #%i]\n",suffix,v,a,lsl);
+    else if (lsl<0) ot("  ldr%s r%d,[r7,r%d,lsr #%i]\n",suffix,v,a,-lsl);
+    else            ot("  ldr%s r%d,[r7,r%d]\n",suffix,v,a);
 
     if (type == earwt_shifted_up && shift)
       ot("  mov%s r%d,r%d,asl #%d\n",s,v,v,shift);
@@ -409,16 +431,7 @@ int EaRead(int a,int v,int ea,int size,int mask,EaRWType type,int set_nz,int for
 
   if (type == earwt_sign_extend)
   {
-    int d_reg=0;
-    if (shift) {
-      SignExtend(v, d_reg, size);
-      d_reg=v;
-      flags_set=1;
-    }
-    if (d_reg != v) {
-      ot("  mov%s r%d,r%d\n",s,v,d_reg);
-      flags_set=1;
-    }
+    flags_set=SignExtend(v, 0, size, set_nz);
   }
   else if (type == earwt_zero_extend)
   {
@@ -507,12 +520,9 @@ int EaWrite(int a,int v,int ea,int size,int mask,EaRWType type,int force_shift)
 
   if (ea<0x10)
   {
-    int lsl=0,low=0,i;
-    if (!force_shift && (size >= 2 || (size == 0 && type != earwt_sign_extend))) {
-      if(mask)
-        for (i=mask|0x8000; (i&1)==0; i>>=1) low++; // Find out how high up the EA mask is
-      lsl=2-low; // Having a lsl #x here saves one opcode
-    }
+    int lsl=0,noshift=0;
+    if (!force_shift && (size >= 2 || (size == 0 && type != earwt_sign_extend))) noshift=1;
+    lsl=EaCalcReg(-1,ea,mask,2,noshift);
 
     ot(";@ EaWrite: r%d into register[r%d]:\n",v,a);
     if (shift)  ot("  mov r%d,r%d,lsr #%d\n",v,v,shift);
@@ -532,24 +542,13 @@ int EaWrite(int a,int v,int ea,int size,int mask,EaRWType type,int force_shift)
   {
     ot("  mov r1,r%d,lsr #%d\n",v,shift);
   }
-  else if (v != 1 || (size < 2 && type != earwt_zero_extend))
+  else if (type != earwt_zero_extend)
   {
-    switch (size) {
-    case 0:
-      ot("  and r1,r%d,#0xff\n",v);
-      break;
-    case 1:
-      if (type != earwt_zero_extend)
-      {
-        ZeroExtend(1, v, size);
-        break;
-      }
-      // fallthrough
-    case 2:
-    default:
-      ot("  mov r1,r%d\n",v);
-      break;
-    }
+    ZeroExtend(1, v, size);
+  }
+  else if (v!=1)
+  {
+    ot("  mov r1,r%d\n",v);
   }
 
   MemHandler(1,size,a,eawrite_check_addrerr); // Call write handler

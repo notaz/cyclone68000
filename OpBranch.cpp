@@ -139,8 +139,7 @@ int OpLink(int op)
 
   if(reg!=7) {
     ot(";@ Get An\n");
-    EaCalc(11, 7, 8, 2);
-    EaRead(11, 1, 8, 2, 7);
+    EaCalcRead(11, 1, 8, 2, 7);
     ot("  ldr r0,[r7,#0x3c] ;@ Get A7\n");
     ot("  sub r0,r0,#4 ;@ A7-=4\n");
   }
@@ -159,8 +158,7 @@ int OpLink(int op)
     EaWrite(11, 8, 8, 2, 7);
 
   ot(";@ Get offset:\n");
-  EaCalc(0,0,0x3c,1);    // abused r8 is ok because of imm EA
-  EaRead(0,0,0x3c,1,0);
+  EaCalcRead(-1,0,0x3c,1,0); // abused r8 is ok because of imm EA
 
   ot("  add r8,r8,r0 ;@ Add offset to A7\n");
   ot("  str r8,[r7,#0x3c]\n");
@@ -182,8 +180,7 @@ int OpUnlk(int op)
   OpStart(op,0x10);
 
   ot(";@ Get An\n");
-  EaCalc(11, 0xf, 8, 2);
-  EaRead(11,   0, 8, 2, 0xf);
+  EaCalcRead(11, 0, 8, 2, 0xf);
 
   ot("  add r8,r0,#4 ;@ A7+=4, abuse r8\n");
   ot("\n");
@@ -359,19 +356,14 @@ int OpDbra(int op)
   if (cc!=0)
   {
     ot(";@ Decrement Dn.w\n");
-    ot("  and r1,r8,#0x0007\n");
-    ot("  mov r1,r1,lsl #2\n");
-    ot("  ldrsh r0,[r7,r1]\n");
-    ot("  strb r8,[r7,#0x45] ;@ not polling\n");
-    ot("  sub r0,r0,#1\n");
-    ot("  strh r0,[r7,r1]\n");
-    ot("\n");
 
-    ot(";@ Check if Dn.w is -1\n");
-    ot("  cmn r0,#1\n");
+    EaCalcRead(0,1,0,1,0x0007);
+    ot("  strb r8,[r7,#0x45] ;@ not polling\n");
+    ot("  subs r1,r1,#1 ;@ Decrement Dn.w and check for borrow\n");
+    EaWrite   (0,1,0,1,0x0007);
 
 #if (USE_CHECKPC_CALLBACK && USE_CHECKPC_DBRA) || EMULATE_ADDRESS_ERRORS_JUMP
-    ot("  beq DbraMin1\n");
+    ot("  blo DbraMin1\n");
     ot("\n");
 
     ot(";@ Get Branch offset:\n");
@@ -382,12 +374,11 @@ int OpDbra(int op)
     ot("  bne ExceptionAddressError_r_prg_r4\n");
 #endif
 #else
-    ot("\n");
     ot(";@ Get Branch offset:\n");
-    ot("  ldrnesh r0,[r4]\n");
-    ot("  addeq r4,r4,#2 ;@ Skip branch offset\n");
-    ot("  subeq r5,r5,#4 ;@ additional cycles\n");
-    ot("  addne r4,r4,r0 ;@ r4 = New PC\n");
+    ot("  ldrhssh r0,[r4]\n");
+    ot("  addlo r4,r4,#2 ;@ Skip branch offset\n");
+    ot("  sublo r5,r5,#4 ;@ additional cycles\n");
+    ot("  addhs r4,r4,r0 ;@ r4 = New PC\n");
     ot("  bic r4,r4,#1\n"); // we do not emulate address errors
     ot("\n");
 #endif
