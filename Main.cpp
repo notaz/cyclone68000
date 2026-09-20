@@ -1344,7 +1344,7 @@ static int CycloneMake()
 #if USE_UAL_SYNTAX && !USE_MS_SYNTAX
   ot("  .syntax unified\n");
 #endif
-  ot(ms?"  area |.text|, code\n":"  .text\n  .balign 4\n\n");
+  ot(ms?"  area |.text|, code, arm\n  arm\n":"  .text\n  .balign 4\n\n");
   DeclareGlobalFunc("CycloneInitJT");
   DeclareGlobalFunc("CycloneResetJT");
   DeclareGlobalFunc("CycloneRun");
