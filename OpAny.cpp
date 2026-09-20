@@ -170,23 +170,28 @@ void OpGetFlagsNZ(int rd)
 }
 
 // size 0=8bit, 1=16bit
-void SignExtend(int rd, int rs, int size)
+// returns 1 if NZ flags were set as preferred
+int SignExtend(int rd, int rs, int size, int prefer_nz)
 {
+  const char *s = prefer_nz?"s":"";
   if (size >= 2)
   {
-    if (rd != rs)
-      ot("  mov r%d,r%d\n", rd, rs);
-    return;
+    if (rd == rs)
+      return 0;
+    ot("  mov%s r%d,r%d\n", s, rd, rs);
+    return prefer_nz;
   }
 #if HAVE_ARMv6
   if (size == 1)
     ot("  sxth r%d,r%d ;@ sign extend\n", rd, rs);
   else
     ot("  sxtb r%d,r%d ;@ sign extend\n", rd, rs);
+  return 0;
 #else
   int shift = size ? 16 : 24;
   ot("  mov r%d,r%d,asl #%d\n", rd, rs, shift);
-  ot("  mov r%d,r%d,asr #%d ;@ sign extend\n", rd, rd, shift);
+  ot("  mov%s r%d,r%d,asr #%d ;@ sign extend\n", s, rd, rd, shift);
+  return prefer_nz;
 #endif
 }
 
