@@ -6,7 +6,7 @@
 // This code is licensed under the GNU General Public License version 2.0 and the MAME License.
 // You can choose the license that has the most advantages for you.
 
-// SVN repository can be found at http://code.google.com/p/cyclone68000/
+// git repository can be found at https://github.com/notaz/cyclone68000/
 
 // Disa 68000 Disassembler
 #ifndef __GNUC__
